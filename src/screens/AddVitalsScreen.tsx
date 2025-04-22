@@ -12,7 +12,6 @@ export default function AddVitalsScreen() {
   const [oxygenLevel, setOxygenLevel] = useState('');
 
   const handleSubmit = () => {
-    // This is where you would normally send the data to Firebase or backend
     console.log({
       heartRate,
       bloodPressure,
@@ -20,7 +19,7 @@ export default function AddVitalsScreen() {
       oxygenLevel,
     });
 
-    navigation.goBack(); // for now just go back
+    navigation.goBack(); 
   };
 
   return (
