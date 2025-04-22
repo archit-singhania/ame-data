@@ -9,7 +9,6 @@ export default function ProfileScreen() {
   const [gender, setGender] = useState('male');
 
   const handleSave = () => {
-    // Later, push to Firebase
     console.log({ name, email, age, gender });
     alert('Profile updated!');
   };
