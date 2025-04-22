@@ -4,7 +4,6 @@ import { Text, Card } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
-// ✅ Define the type for a report entry
 type Report = {
   id: string;
   date: string;
