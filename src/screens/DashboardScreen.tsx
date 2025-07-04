@@ -5,7 +5,9 @@ import {
   ScrollView, 
   Animated, 
   Dimensions,
-  StatusBar 
+  StatusBar,
+  TouchableOpacity,
+  ImageBackground
 } from 'react-native';
 import { Text, Button, Card, Title, Paragraph } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,165 +16,259 @@ const { width, height } = Dimensions.get('window');
 
 export default function DashboardScreen({ navigation }: any) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const floatAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const bounceAnim = useRef(new Animated.Value(0)).current;
   const cardAnims = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
   ]).current;
+  const particleAnims = useRef(
+    Array(8).fill(0).map(() => ({
+      x: new Animated.Value(0),
+      y: new Animated.Value(0),
+      scale: new Animated.Value(0),
+      opacity: new Animated.Value(0),
+    }))
+  ).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
+        duration: 1200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bounceAnim, {
+        toValue: 1,
         duration: 800,
         useNativeDriver: true,
       }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
     ]).start();
+
     cardAnims.forEach((anim, index) => {
-      Animated.timing(anim, {
+      Animated.spring(anim, {
         toValue: 1,
-        duration: 500,
-        delay: index * 100,
+        delay: index * 150,
+        tension: 80,
+        friction: 8,
         useNativeDriver: true,
       }).start();
     });
+
     Animated.loop(
       Animated.sequence([
-        Animated.timing(floatAnim, {
+        Animated.timing(rotateAnim, {
           toValue: 1,
-          duration: 4000,
+          duration: 10000,
           useNativeDriver: true,
         }),
-        Animated.timing(floatAnim, {
+        Animated.timing(rotateAnim, {
           toValue: 0,
-          duration: 4000,
+          duration: 0,
           useNativeDriver: true,
         }),
       ])
     ).start();
+
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
+        Animated.timing(shimmerAnim, {
           toValue: 1,
           duration: 2000,
           useNativeDriver: true,
         }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
       ])
     ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.08,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    particleAnims.forEach((particle, index) => {
+      const startDelay = index * 400;
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(startDelay),
+          Animated.parallel([
+            Animated.timing(particle.opacity, {
+              toValue: 0.6,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(particle.scale, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(particle.y, {
+              toValue: -height,
+              duration: 6000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(particle.opacity, {
+              toValue: 0,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(particle.scale, {
+              toValue: 0,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.timing(particle.y, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    });
   }, []);
 
-  const menuItems: {
-    title: string;
-    description: string;
-    icon: string;
-    onPress: () => void;
-    gradient: [string, string, ...string[]]; 
-  }[] = [
+    const menuItems = [
     {
-      title: 'My Profile',
-      description: 'View and update your personal info',
-      icon: '👤',
-      onPress: () => navigation.navigate('Profile'),
-      gradient: ['#ff9a9e', '#fecfef'],
-    },
-    {
-      title: 'Add Vitals',
-      description: 'Submit your daily health vitals',
-      icon: '📊',
-      onPress: () => navigation.navigate('AddVitals'),
-      gradient: ['#a8edea', '#fed6e3'],
-    },
-    {
-      title: 'Health Reports',
-      description: 'View previous health reports',
-      icon: '📋',
-      onPress: () => navigation.navigate('Reports'),
-      gradient: ['#ffecd2', '#fcb69f'],
-    },
-    {
-      title: 'Appointments',
-      description: 'View or book upcoming appointments',
+      title: 'AME Stats & Health Overview',
+      description: 'View Annual Medical Examination status, medical history, and anthropometric measurements.',
       icon: '🏥',
-      onPress: () => navigation.navigate('Appointments'),
-      gradient: ['#a8e6cf', '#dcedc1'],
+      iconBg: '#FF6B6B',
+      onPress: () => navigation.navigate('AMEStatus'),
+      gradient: ['#134E5E', '#71B280'] as const,
+      shadowColor: '#FF6B6B',
+    },
+    {
+      title: 'Low Medical Category (LMC)',
+      description: 'Access classification records and status for personnel in low medical categories.',
+      icon: '📋',
+      iconBg: '#4ECDC4',
+      onPress: () => navigation.navigate('LMCRecords'),
+      gradient: ['#2b5876', '#4e4376'] as const,
+      shadowColor: '#4ECDC4',
+    },
+    {
+      title: 'Health Reports & Logs',
+      description: 'Generate and review medical reports, activity logs, and examination summaries.',
+      icon: '📊',
+      iconBg: '#A8E6CF',
+      onPress: () => navigation.navigate('Reports'),
+      gradient: ['#42275a', '#734b6d'] as const,
+      shadowColor: '#A8E6CF',
+    },
+    {
+      title: 'Admin & Record Control',
+      description: 'Manage users, update data, and maintain tables and medical records efficiently.',
+      icon: '⚙️',
+      iconBg: '#FFB74D',
+      onPress: () => navigation.navigate('RecordManagement'),
+      gradient: ['#485563', '#29323c'] as const,
+      shadowColor: '#FFB74D',
     },
   ];
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const shimmer = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-200, 200],
+  });
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
       <LinearGradient
         colors={[
-          '#000000',   
-          '#1f291f',  
-          '#3c4d36',   
-          '#5c4931',  
-          '#2e3d2e',  
-          '#0d0d0d'   
+          '#0F0C29',
+          '#302B63',
+          '#24243e',
+          '#2C5364',
+          '#0F2027',
+          '#0F0C29'
         ]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
+        {particleAnims.map((particle, index) => (
+          <Animated.View
+            key={index}
+            style={[
+              styles.particle,
+              {
+                left: (index % 4) * (width / 4) + Math.random() * (width / 4),
+                transform: [
+                  { translateY: particle.y },
+                  { scale: particle.scale },
+                ],
+                opacity: particle.opacity,
+              }
+            ]}
+          />
+        ))}
+
         <Animated.View 
           style={[
-            styles.floatingElement,
-            styles.element1,
+            styles.floatingGeometry,
+            styles.geometry1,
             {
-              transform: [{
-                translateY: floatAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -15],
-                })
-              }]
+              transform: [{ rotate: spin }]
             }
           ]}
         />
         <Animated.View 
           style={[
-            styles.floatingElement,
-            styles.element2,
+            styles.floatingGeometry,
+            styles.geometry2,
             {
-              transform: [{
-                translateY: floatAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 20],
-                })
-              }]
+              transform: [{ rotate: spin }]
             }
           ]}
         />
         <Animated.View 
           style={[
-            styles.floatingElement,
-            styles.element3,
+            styles.floatingGeometry,
+            styles.geometry3,
             {
-              transform: [{
-                translateY: floatAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -10],
-                })
-              }]
+              transform: [{ rotate: spin }]
             }
           ]}
         />
@@ -194,13 +290,48 @@ export default function DashboardScreen({ navigation }: any) {
             ]}
           >
             <View style={styles.logoContainer}>
-              <View style={styles.logoCircle}>
-                <Text style={styles.logoText}>H</Text>
-              </View>
+              <Animated.View 
+                style={[
+                  styles.logoCircle,
+                  {
+                    transform: [{ rotate: spin }]
+                  }
+                ]}
+              >
+                <LinearGradient
+                  colors={['#FF6B6B', '#4ECDC4', '#45B7B8']}
+                  style={styles.logoGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.logoText}>⚕️</Text>
+                </LinearGradient>
+              </Animated.View>
+              
+              <Animated.View 
+                style={[
+                  styles.shimmer,
+                  {
+                    transform: [{ translateX: shimmer }]
+                  }
+                ]}
+              />
             </View>
-            <Text style={styles.heading}>Welcome to HealthSync</Text>
-            <Text style={styles.subtitle}>Your health dashboard</Text>
+            
+            <Animated.View
+              style={[
+                styles.titleContainer,
+                {
+                  transform: [{ scale: bounceAnim }]
+                }
+              ]}
+            >
+              <Text style={styles.heading}>MedTrack Pro</Text>
+              <Text style={styles.subtitle}>Advanced Medical Records Dashboard</Text>
+              <View style={styles.divider} />
+            </Animated.View>
           </Animated.View>
+
           <Animated.View 
             style={[
               styles.cardsContainer,
@@ -220,38 +351,76 @@ export default function DashboardScreen({ navigation }: any) {
                     transform: [{
                       translateY: cardAnims[index].interpolate({
                         inputRange: [0, 1],
-                        outputRange: [30, 0],
+                        outputRange: [50, 0],
+                      })
+                    }, {
+                      scale: cardAnims[index].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.8, 1],
                       })
                     }]
                   }
                 ]}
               >
-                <Card style={styles.card} onPress={item.onPress}>
+                <TouchableOpacity
+                  onPress={item.onPress}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.card,
+                    {
+                      shadowColor: item.shadowColor,
+                    }
+                  ]}
+                >
                   <LinearGradient
                     colors={item.gradient}
                     style={styles.cardGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
+                    <View style={styles.glassOverlay} />
+                    
                     <View style={styles.cardContent}>
-                      <View style={styles.iconContainer}>
-                        <Text style={styles.cardIcon}>{item.icon}</Text>
+                      <View style={styles.cardHeader}>
+                        <View style={[styles.iconContainer, { backgroundColor: item.iconBg }]}>
+                          <Text style={styles.cardIcon}>{item.icon}</Text>
+                        </View>
+                        <View style={styles.cardNumber}>
+                          <Text style={styles.cardNumberText}>{index + 1}</Text>
+                        </View>
                       </View>
-                      <View style={styles.cardTextContainer}>
+                      
+                      <View style={styles.cardBody}>
                         <Title style={styles.cardTitle}>{item.title}</Title>
                         <Paragraph style={styles.cardDescription}>
                           {item.description}
                         </Paragraph>
                       </View>
-                      <View style={styles.arrowContainer}>
-                        <Text style={styles.arrow}>→</Text>
+                      
+                      <View style={styles.cardFooter}>
+                        <View style={styles.progressBar}>
+                          <View style={[styles.progressFill, { width: `${75 + index * 5}%` }]} />
+                        </View>
+                        <View style={styles.arrowContainer}>
+                          <Text style={styles.arrow}>→</Text>
+                        </View>
                       </View>
                     </View>
+                    
+                    <Animated.View 
+                      style={[
+                        styles.cardShimmer,
+                        {
+                          transform: [{ translateX: shimmer }]
+                        }
+                      ]}
+                    />
                   </LinearGradient>
-                </Card>
+                </TouchableOpacity>
               </Animated.View>
             ))}
           </Animated.View>
+
           <Animated.View 
             style={[
               styles.logoutContainer,
@@ -261,15 +430,20 @@ export default function DashboardScreen({ navigation }: any) {
               }
             ]}
           >
-            <Button
-              mode="outlined"
-              onPress={() => navigation.replace('Login')}
-              style={styles.logoutBtn}
-              contentStyle={styles.buttonContent}
-              labelStyle={styles.logoutLabel}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('RoleSelection')}
+              style={styles.logoutButton}
+              activeOpacity={0.8}
             >
-              Logout
-            </Button>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                style={styles.logoutGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.logoutText}>🚪 Logout</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </Animated.View>
         </ScrollView>
       </LinearGradient>
@@ -284,155 +458,266 @@ const styles = StyleSheet.create({
   gradient: {
     flex: 1,
   },
-  floatingElement: {
+  particle: {
     position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 50,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
   },
-  element1: {
-    width: 60,
-    height: 60,
-    top: '8%',
-    right: '10%',
+  floatingGeometry: {
+    position: 'absolute',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
-  element2: {
+  geometry1: {
+    width: 120,
+    height: 120,
+    top: '10%',
+    right: '5%',
+    borderRadius: 60,
+  },
+  geometry2: {
     width: 80,
     height: 80,
-    top: '25%',
-    left: '5%',
+    top: '10%',
+    left: '10%',
+    borderRadius: 0,
+    transform: [{ rotate: '45deg' }],
   },
-  element3: {
-    width: 40,
-    height: 40,
-    bottom: '20%',
-    right: '15%',
-    opacity: 0.6,
+  geometry3: {
+    width: 60,
+    height: 60,
+    bottom: '25%',
+    right: '20%',
+    borderRadius: 30,
   },
   scrollContent: {
-    paddingTop: StatusBar.currentHeight || 50,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingTop: StatusBar.currentHeight || 60,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 40,
     paddingTop: 20,
   },
   logoContainer: {
-    marginBottom: 20,
+    position: 'relative',
+    marginBottom: 30,
   },
   logoCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    overflow: 'hidden',
+    elevation: 20,
+    shadowColor: '#4ECDC4',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  logoGradient: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   logoText: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 40,
     color: 'white',
   },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    opacity: 0.6,
+  },
+  titleContainer: {
+    alignItems: 'center',
+  },
   heading: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 36,
+    fontWeight: '900',
     color: 'white',
     textAlign: 'center',
     marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 8,
+    letterSpacing: 1,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     fontWeight: '600',
+    marginBottom: 20,
+    letterSpacing: 0.5,
+  },
+  divider: {
+    width: 60,
+    height: 4,
+    backgroundColor: '#4ECDC4',
+    borderRadius: 2,
   },
   cardsContainer: {
     flex: 1,
   },
   cardWrapper: {
-    marginBottom: 15,
+    marginBottom: 20,
   },
   card: {
-    borderRadius: 20,
+    borderRadius: 24,
+    elevation: 15,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    overflow: 'hidden',
+  },
+  cardGradient: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  glassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  cardContent: {
+    paddingVertical: 0,
+    paddingHorizontal: 16,
+    minHeight: 80,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    overflow: 'hidden',
-  },
-  cardGradient: {
-    padding: 20,
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
   },
   cardIcon: {
-    fontSize: 24,
+    fontSize: 28,
   },
-  cardTextContainer: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 18,
-  },
-  arrowContainer: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  cardNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  arrow: {
-    fontSize: 18,
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  logoutContainer: {
-    marginTop: 30,
-    alignItems: 'center',
-  },
-  logoutBtn: {
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    minWidth: 150,
-  },
-  buttonContent: {
-    height: 45,
-  },
-  logoutLabel: {
+  cardNumberText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: 'white',
+  },
+  cardBody: {
+    marginBottom: 8,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: 'white',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    lineHeight: 24,
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.95)',
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 3,
+    marginRight: 16,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 3,
+  },
+  arrowContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  arrow: {
+    fontSize: 20,
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  cardShimmer: {
+    position: 'absolute',
+    top: 0,
+    left: -200,
+    width: 200,
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    transform: [{ skewX: '-20deg' }],
+  },
+  logoutContainer: {
+    marginTop: 40,
+    alignItems: 'center',
+  },
+  logoutButton: {
+    borderRadius: 30,
+    overflow: 'hidden',
+    elevation: 10,
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+  },
+  logoutGradient: {
+    paddingHorizontal: 40,
+    paddingVertical: 16,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  logoutText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'white',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });

@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as SQLite from 'expo-sqlite';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { debugPrintTables } from '../scripts/debugDB';
 
 const { width, height } = Dimensions.get('window');
 
@@ -103,7 +104,7 @@ export default function LoginAdmin({ navigation }: any) {
     setLoading(true);
 
     try {
-      const result = db.getAllSync('SELECT * FROM users WHERE email = ?', [identity]);
+      const result = db.getAllSync('SELECT * FROM users WHERE identity = ?', [identity]);
 
       if (result.length === 0) {
         Alert.alert('Login Failed', 'No account found with this identity');
@@ -368,6 +369,7 @@ export default function LoginAdmin({ navigation }: any) {
               <Text style={styles.registerText}>
                 Don't have an account? <Text style={styles.registerLink}>Register</Text>
               </Text>
+            <Button mode="outlined" onPress={debugPrintTables}>Debug DB</Button>
             </TouchableOpacity>
           </View>
         </BlurView>
