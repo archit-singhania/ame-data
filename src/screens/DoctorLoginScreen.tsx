@@ -111,7 +111,7 @@ export default function LoginDoctor({ navigation }: any) {
     setLoading(true);
 
     try {
-      const result = db.getAllSync('SELECT * FROM users WHERE email = ?', [identity]);
+      const result = db.getAllSync('SELECT * FROM users WHERE identity = ?', [identity]);
 
       if (result.length === 0) {
         Alert.alert('Access Denied', 'No account found with this identity');

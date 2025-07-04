@@ -105,7 +105,7 @@ export default function LoginPersonnel({ navigation }: any) {
     setLoading(true);
 
     try {
-      const result = db.getAllSync('SELECT * FROM users WHERE email = ?', [identity]);
+      const result = db.getAllSync('SELECT * FROM users WHERE identity = ?', [identity]);
 
       if (result.length === 0) {
         Alert.alert('Login Failed', 'No account found with this identity');
@@ -377,17 +377,6 @@ export default function LoginPersonnel({ navigation }: any) {
                 )}
               </LinearGradient>
             </TouchableOpacity>
-            
-            <View style={styles.linkContainer}>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Register')}
-                disabled={loading}
-                style={styles.linkButton}
-              >
-                <Text style={styles.linkText}>Don't have an account? </Text>
-                <Text style={[styles.linkText, styles.linkTextBold]}>Register</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </Animated.View>
       </LinearGradient>
@@ -551,6 +540,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 15,
     elevation: 8,
+    alignSelf: 'center',
+    width: '70%'
   },
   loginButtonDisabled: {
     shadowOpacity: 0.1,
@@ -566,23 +557,5 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: '700',
-  },
-  linkContainer: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  linkText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  linkTextBold: {
-    color: 'white',
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-  },
+  }
 });
