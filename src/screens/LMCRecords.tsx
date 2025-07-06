@@ -270,9 +270,8 @@ export default function LMCRecords() {
       const validatedData = [];
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i] as any;
-        
+      
         if (!row['IRLA NO/REGT NO'] || !row['NAME']) {
-          console.warn(`Row ${i + 1}: Missing required fields`);
           continue;
         }
 

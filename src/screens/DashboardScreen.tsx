@@ -186,7 +186,7 @@ export default function DashboardScreen({ navigation }: any) {
       description: 'Generate and review medical reports, activity logs, and examination summaries.',
       icon: '📊',
       iconBg: '#A8E6CF',
-      onPress: () => navigation.navigate('Reports'),
+      onPress: () => navigation.navigate('ReportsDetailScreen'),
       gradient: ['#42275a', '#734b6d'] as const,
       shadowColor: '#A8E6CF',
     },

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import XLSX from 'xlsx';
 import { insertAMERecord, getAMERecords, createAMETable } from '../utils/sqlite';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { deleteAMERecords } from '../utils/sqlite';
 
 export default function AMEStatus() {
   const [loading, setLoading] = useState(false);
@@ -29,86 +30,23 @@ export default function AMEStatus() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
-
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const recordsPerPage = 50;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 10000,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shimmerAnim, {
-          toValue: 0,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300, 
+      useNativeDriver: true,
+    }).start();
     
     initializeData();
   }, []);
@@ -126,10 +64,29 @@ export default function AMEStatus() {
   const loadAMERecords = async () => {
     try {
       const records = await getAMERecords();
-      setAMERecords(records);
+      const sortedRecords = records.sort((a, b) => (a.s_no || 0) - (b.s_no || 0));
+      setAMERecords(sortedRecords);
     } catch (error) {
       console.error('Error loading AME records:', error);
       Alert.alert('Error', 'Failed to load AME records');
+    }
+  };
+
+  const deleteAllRecords = async () => {
+    try {
+      setIsDeleting(true);
+      
+      requestAnimationFrame(async () => {
+        await deleteAMERecords();
+        setAMERecords([]); 
+        setShowDeleteDialog(false);
+        setIsDeleting(false);
+        Alert.alert('Success', 'All records deleted successfully');
+      });
+    } catch (error) {
+      console.error('Error deleting records:', error);
+      Alert.alert('Error', 'Failed to delete records');
+      setIsDeleting(false);
     }
   };
 
@@ -138,96 +95,22 @@ export default function AMEStatus() {
       setDialogType('download');
       setShowDialog(true);
 
-      const headers = [
-        'S.No',
-        'IRLA No./Regt. ID',
-        'Rank',
-        'Full Name',
-        'Coy',
-        'Age',
-        'Height (cm)',
-        'Weight (Kg)',
-        'Chest (cm)',
-        'Waist Hip Ratio',
-        'BMI',
-        'Pulse',
-        'Blood Group',
-        'Blood Pressure',
-        'Vision',
-        'Previous Medical Category',
-        'Date of AME',
-        'Present Category Awarded',
-        'Category Reason',
-        'Remarks'
-      ];
+      requestAnimationFrame(async () => {
+        const headers = [
+          'S.No', 'IRLA No./Regt. ID', 'Rank', 'Full Name', 'Coy', 'Age',
+          'Height (cm)', 'Weight (Kg)', 'Chest (cm)', 'Waist Hip Ratio',
+          'BMI', 'Pulse', 'Blood Group', 'Blood Pressure', 'Vision',
+          'Previous Medical Category', 'Date of AME', 'Present Category Awarded',
+          'Category Reason', 'Remarks'
+        ];
 
-      const ws = XLSX.utils.aoa_to_sheet([headers]);
-
-      const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1:T1');
-      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
-        const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
-        if (!ws[cellRef]) continue;
+        const ws = XLSX.utils.aoa_to_sheet([headers]);
         
-        ws[cellRef].s = {
-          font: { 
-            bold: true, 
-            sz: 18 
-          },
-          alignment: { 
-            horizontal: 'center',
-            vertical: 'center'
-          },
-          fill: {
-            fgColor: { rgb: 'E6E6FA' } 
-          }
-        };
-      }
-
-      const colWidths = [
-        { wch: 8 },  
-        { wch: 18 }, 
-        { wch: 12 }, 
-        { wch: 20 }, 
-        { wch: 8 },   
-        { wch: 8 },   
-        { wch: 12 },  
-        { wch: 12 },  
-        { wch: 12 },  
-        { wch: 15 },  
-        { wch: 8 },   
-        { wch: 8 },  
-        { wch: 12 },  
-        { wch: 15 },  
-        { wch: 10 },  
-        { wch: 25 }, 
-        { wch: 15 },  
-        { wch: 25 }, 
-        { wch: 18 }, 
-        { wch: 15 }   
-      ];
-
-      ws['!cols'] = colWidths;
-
-      ws['!rows'] = [{ hpt: 25 }]; 
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'AME_Template');
-
-      if (Platform.OS === 'web') {
-        const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-        const blob = new Blob([wbout], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'AME_Template.xlsx';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      } else {
-        const FileSystem = require('expo-file-system');
-        const Sharing = require('expo-sharing');
+        ws['!cols'] = Array(20).fill({ wch: 15 });
         
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'AME_Template');
+
         const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
         const fileUri = FileSystem.documentDirectory + 'AME_Template.xlsx';
         
@@ -236,11 +119,9 @@ export default function AMEStatus() {
         });
         
         await Sharing.shareAsync(fileUri);
-      }
-
-      setTimeout(() => {
+        
         setShowDialog(false);
-      }, 2000);
+      });
     } catch (error) {
       console.error('Error preparing template:', error);
       setShowDialog(false);
@@ -306,19 +187,17 @@ export default function AMEStatus() {
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      setUploadProgress(30);
+      setUploadProgress(20);
 
       if (jsonData.length === 0) {
         throw new Error('No data found in the Excel file');
       }
 
-      const validatedData = [];
-      for (let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i] as any;
-        
+      const validatedData = jsonData.map((row: any, i: number) => {
         const defaultValue = '-';
-
-        validatedData.push({
+        
+        return {
+          s_no: parseInt(row['S.No']) || (i + 1),
           personnel_id: row['IRLA No./Regt. ID'] || defaultValue,
           rank: row['Rank'] || defaultValue,
           full_name: row['Full Name'] || defaultValue,
@@ -334,38 +213,78 @@ export default function AMEStatus() {
           blood_pressure: row['Blood Pressure'] || defaultValue,
           vision: row['Vision'] || defaultValue,
           previous_medical_category: row['Previous Medical Category'] || defaultValue,
-          ame_date: row['Date of AME'] || defaultValue,
+          date_of_ame: row['Date of AME'] || defaultValue,
           present_category_awarded: row['Present Category Awarded'] || defaultValue,
           category_reason: row['Category Reason'] || defaultValue,
           remarks: row['Remarks'] || defaultValue,
-          ame_status: 'pending',
+        };
+      });
+
+      validatedData.sort((a, b) => (a.s_no || 0) - (b.s_no || 0));
+
+      setUploadProgress(70);
+
+      if (ameRecords.length > 0) {
+        await new Promise((resolve) => {
+          Alert.alert(
+            'Existing Data Found',
+            `There are ${ameRecords.length} existing records. Do you want to overwrite them?`,
+            [
+              { 
+                text: 'Cancel', 
+                onPress: () => {
+                  setShowDialog(false);
+                  setLoading(false);
+                  resolve(false);
+                }
+              },
+              { 
+                text: 'Append', 
+                onPress: () => resolve(false)
+              },
+              { 
+                text: 'Overwrite', 
+                onPress: async () => {
+                  await deleteAMERecords();
+                  setUploadProgress(80);
+                  resolve(true);
+                }
+              }
+            ]
+          );
         });
-
-        setUploadProgress(30 + (i / jsonData.length) * 50);
       }
 
+      const batchSize = 50; 
       let insertedCount = 0;
-      for (const record of validatedData) {
-        try {
-          await insertAMERecord(record);
-          insertedCount++;
-        } catch (error) {
-          console.error('Error inserting record:', error);
-        }
+
+      const insertPromises = [];
+      for (let i = 0; i < validatedData.length; i += batchSize) {
+        const batch = validatedData.slice(i, i + batchSize);
+        
+        const batchPromise = Promise.all(
+          batch.map(record => insertAMERecord(record))
+        ).then(() => {
+          insertedCount += batch.length;
+          const progress = 80 + ((insertedCount) / validatedData.length) * 20;
+          setUploadProgress(Math.min(progress, 100));
+        });
+        
+        insertPromises.push(batchPromise);
       }
+
+      await Promise.all(insertPromises);
 
       setUploadProgress(100);
 
       await loadAMERecords();
 
-      setTimeout(() => {
-        setShowDialog(false);
-        setLoading(false);
-        Alert.alert(
-          'Upload Complete',
-          `Successfully uploaded ${insertedCount} out of ${validatedData.length} records.`
-        );
-      }, 1000);
+      setShowDialog(false);
+      setLoading(false);
+      Alert.alert(
+        'Upload Complete',
+        `Successfully uploaded ${insertedCount} out of ${validatedData.length} records.`
+      );
 
     } catch (error) {
       console.error('Error uploading file:', error);
@@ -379,13 +298,19 @@ export default function AMEStatus() {
     }
   };
 
-  const filteredRecords = ameRecords.filter(record => {
-    const searchLower = searchQuery.toLowerCase();
-    return (
-      record.full_name?.toLowerCase().includes(searchLower) ||
-      record.personnel_id?.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredRecords = useMemo(() => {
+    const filtered = searchQuery 
+      ? ameRecords.filter(record => {
+          const searchLower = searchQuery.toLowerCase();
+          return (
+            record.full_name?.toLowerCase().includes(searchLower) ||
+            record.personnel_id?.toLowerCase().includes(searchLower)
+          );
+        })
+      : ameRecords;
+    
+    return filtered.sort((a, b) => (a.s_no || 0) - (b.s_no || 0));
+  }, [ameRecords, searchQuery]);
 
   const renderStatsCard = (title: string, value: number, icon: string, color: string) => (
     <Surface style={[styles.statsCard, { borderLeftColor: color }]}>
@@ -482,7 +407,12 @@ export default function AMEStatus() {
             <View style={styles.actionContainer}>
               <Button
                 mode="contained"
-                onPress={downloadTemplate}
+                onPress={() => {
+                  setIsDownloading(true);
+                  downloadTemplate().finally(() => setIsDownloading(false));
+                }}
+                loading={isDownloading}
+                disabled={isDownloading}
                 style={styles.actionButton}
                 contentStyle={styles.buttonContent}
                 labelStyle={styles.buttonLabel}
@@ -501,6 +431,19 @@ export default function AMEStatus() {
               >
                 Upload Excel File
               </Button>
+
+              {ameRecords.length > 0 && (
+                <Button
+                  mode="contained"
+                  onPress={() => setShowDeleteDialog(true)}
+                  style={[styles.actionButton, { backgroundColor: '#F44336' }]}
+                  contentStyle={styles.buttonContent}
+                  labelStyle={styles.buttonLabel}
+                  icon="delete"
+                >
+                  Delete All Records
+                </Button>
+              )}
             </View>
 
             {ameRecords.length > 0 && (
@@ -610,9 +553,9 @@ export default function AMEStatus() {
                             </DataTable.Title>
                           </DataTable.Header>
                           
-                          {filteredRecords.map((record, index) => (
+                          {filteredRecords.slice(0, 100).map((record, index) => ( 
                             <DataTable.Row 
-                              key={index} 
+                              key={`${record.personnel_id}-${index}`} 
                               style={[
                                 styles.tableRow,
                                 index % 2 === 0 ? styles.evenRow : styles.oddRow
@@ -620,7 +563,7 @@ export default function AMEStatus() {
                             >
                               <DataTable.Cell style={[styles.tableCell, styles.serialCell]}>
                                 <View style={styles.serialNumberBadge}>
-                                  <Text style={styles.serialNumber}>{index + 1}</Text>
+                                  <Text style={styles.serialNumber}>{record.s_no}</Text>
                                 </View>
                               </DataTable.Cell>
                               <DataTable.Cell style={[styles.tableCell, styles.idCell]}>
@@ -766,6 +709,28 @@ export default function AMEStatus() {
                 </Text>
               </View>
             </Dialog.Content>
+          </Dialog>
+        </Portal>
+        <Portal>
+          <Dialog visible={showDeleteDialog} onDismiss={() => setShowDeleteDialog(false)}>
+            <Dialog.Title>Delete Table</Dialog.Title>
+            <Dialog.Content>
+              <Text>Are you sure you want to delete all {ameRecords.length} AME records? This action cannot be undone.</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setShowDeleteDialog(false)} disabled={isDeleting}>
+                Cancel
+              </Button>
+              <Button 
+                onPress={deleteAllRecords} 
+                loading={isDeleting}
+                disabled={isDeleting}
+                buttonColor="#F44336"
+                textColor="white"
+              >
+                Delete All
+              </Button>
+            </Dialog.Actions>
           </Dialog>
         </Portal>
       </LinearGradient>

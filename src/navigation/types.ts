@@ -11,6 +11,6 @@ export type RootStackParamList = {
   AMEStatus: undefined;
   LMCRecords: undefined;
   AddVitals: undefined;
-  Reports: undefined;
+  ReportsDetailScreen: undefined;
   Appointments: undefined;
 };

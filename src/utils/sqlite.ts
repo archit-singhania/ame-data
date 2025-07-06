@@ -48,6 +48,7 @@ export interface User {
 
 export interface AMERecord {
   id?: number;
+  s_no: number;
   personnel_id: string;           
   rank: string;
   full_name: string;
@@ -63,7 +64,7 @@ export interface AMERecord {
   blood_pressure?: string;
   vision?: string;
   previous_medical_category?: string;
-  ame_date: string;
+  date_of_ame: string;
   present_category_awarded?: string;
   category_reason?: string;
   remarks?: string;
@@ -301,52 +302,6 @@ export const deleteUser = (adminId: number, userId: number): void => {
   }
 };
 
-export const addHealthRecord = (userId: number, recordType: string, data: string): number => {
-  try {
-    const result = db.runSync('INSERT INTO health_records (user_id, record_type, data) VALUES (?, ?, ?)', [userId, recordType, data]);
-    return result.lastInsertRowId;
-  } catch (error) {
-    console.error('Error adding health record:', error);
-    throw error;
-  }
-};
-
-export const getHealthRecords = (userId: number): any[] => {
-  try {
-    return db.getAllSync('SELECT * FROM health_records WHERE user_id = ? ORDER BY created_at DESC', [userId]);
-  } catch (error) {
-    console.error('Error getting health records:', error);
-    throw error;
-  }
-};
-
-export const getHealthRecordsByType = (userId: number, recordType: string): any[] => {
-  try {
-    return db.getAllSync('SELECT * FROM health_records WHERE user_id = ? AND record_type = ? ORDER BY created_at DESC', [userId, recordType]);
-  } catch (error) {
-    console.error('Error getting health records by type:', error);
-    throw error;
-  }
-};
-
-export const updateHealthRecord = (recordId: number, data: string): void => {
-  try {
-    db.runSync('UPDATE health_records SET data = ? WHERE id = ?', [data, recordId]);
-  } catch (error) {
-    console.error('Error updating health record:', error);
-    throw error;
-  }
-};
-
-export const deleteHealthRecord = (recordId: number): void => {
-  try {
-    db.runSync('DELETE FROM health_records WHERE id = ?', [recordId]);
-  } catch (error) {
-    console.error('Error deleting health record:', error);
-    throw error;
-  }
-};
-
 export const insertRecord = (tableName: string, data: Record<string, any>): number => {
   try {
     const fields: string[] = Object.keys(data);
@@ -364,10 +319,10 @@ export const insertRecord = (tableName: string, data: Record<string, any>): numb
 
 export const createAMETable = (): void => {
   try {
-    // db.execSync('DROP TABLE IF EXISTS ame_records');
     db.execSync(
       `CREATE TABLE IF NOT EXISTS ame_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        s_no INTEGER,  -- Add this line
         personnel_id TEXT,
         rank TEXT,
         full_name TEXT,
@@ -383,7 +338,7 @@ export const createAMETable = (): void => {
         blood_pressure TEXT,
         vision TEXT,
         previous_medical_category TEXT,
-        ame_date TEXT,
+        date_of_ame TEXT,
         present_category_awarded TEXT,
         category_reason TEXT,
         remarks TEXT,
@@ -432,12 +387,13 @@ export const insertAMERecord = (
   try {
     const result = db.runSync(
       `INSERT INTO ame_records (
-        personnel_id, rank, full_name, unit, age, height, weight,
+        s_no, personnel_id, rank, full_name, unit, age, height, weight,
         chest, waist_hip_ratio, bmi, pulse, blood_group,
         blood_pressure, vision, previous_medical_category,
-        ame_date, present_category_awarded, category_reason, remarks
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        date_of_ame, present_category_awarded, category_reason, remarks
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        sanitizeValue(record.s_no),
         record.personnel_id,
         record.rank,
         record.full_name,
@@ -453,7 +409,7 @@ export const insertAMERecord = (
         sanitizeValue(record.blood_pressure),
         sanitizeValue(record.vision),
         sanitizeValue(record.previous_medical_category),
-        sanitizeDateValue(record.ame_date),
+        sanitizeDateValue(record.date_of_ame),
         sanitizeValue(record.present_category_awarded),
         sanitizeValue(record.category_reason),
         sanitizeValue(record.remarks)
@@ -496,7 +452,7 @@ export const getAMERecordsByStatus = (status: string): AMERecord[] => {
 export const getAMERecordsByDateRange = (startDate: string, endDate: string): AMERecord[] => {
   try {
     return db.getAllSync(
-      'SELECT * FROM ame_records WHERE ame_date BETWEEN ? AND ? ORDER BY ame_date DESC',
+      'SELECT * FROM ame_records WHERE date_of_ame BETWEEN ? AND ? ORDER BY date_of_ame DESC',
       [startDate, endDate]
     ) as AMERecord[];
   } catch (error) {
@@ -510,7 +466,7 @@ export const updateAMERecord = (id: number, updates: Partial<AMERecord>): void =
     const fields = Object.keys(updates).filter(key => key !== 'id' && key !== 'created_at');
     const values = fields.map(field => {
       const value = updates[field as keyof AMERecord];
-      if (field === 'ame_date') {
+      if (field === 'date_of_ame') {
         return sanitizeDateValue(value);
       }
       return sanitizeValue(value);
@@ -524,9 +480,9 @@ export const updateAMERecord = (id: number, updates: Partial<AMERecord>): void =
   }
 };
 
-export const deleteAMERecord = (id: number): void => {
+export const deleteAMERecords = () => {
   try {
-    db.runSync('DELETE FROM ame_records WHERE id = ?', [id]);
+    db.runSync('DELETE FROM ame_records');
   } catch (error) {
     console.error('Error deleting AME record:', error);
     throw error;
@@ -535,32 +491,26 @@ export const deleteAMERecord = (id: number): void => {
 
 export const getAMEStatistics = (): {
   total: number;
-  fit: number;
-  unfit: number;
-  pending: number;
-  fitPercentage: number;
-  unfitPercentage: number;
-  pendingPercentage: number;
+  dueSoon: number;
 } => {
   try {
-    const total = db.getFirstSync('SELECT COUNT(*) as count FROM ame_records') as { count: number };
-    const fit = db.getFirstSync('SELECT COUNT(*) as count FROM ame_records WHERE ame_status = "Fit"') as { count: number };
-    const unfit = db.getFirstSync('SELECT COUNT(*) as count FROM ame_records WHERE ame_status = "Unfit"') as { count: number };
-    const pending = db.getFirstSync('SELECT COUNT(*) as count FROM ame_records WHERE ame_status = "Pending"') as { count: number };
+    const ameRecords = db.getAllSync('SELECT date_of_ame FROM ame_records') as { date_of_ame: string }[];
+    const total = ameRecords.length;
 
-    const totalCount = total.count;
-    const fitCount = fit.count;
-    const unfitCount = unfit.count;
-    const pendingCount = pending.count;
+    const today = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+    const dueSoon = ameRecords.filter(record => {
+      if (!record.date_of_ame) return false;
+      const [day, month, year] = record.date_of_ame.split('.').map(Number);
+      const ameDate = new Date(year, month - 1, day);
+      return ameDate >= today && ameDate <= thirtyDaysFromNow;
+    }).length;
 
     return {
-      total: totalCount,
-      fit: fitCount,
-      unfit: unfitCount,
-      pending: pendingCount,
-      fitPercentage: totalCount > 0 ? Math.round((fitCount / totalCount) * 100) : 0,
-      unfitPercentage: totalCount > 0 ? Math.round((unfitCount / totalCount) * 100) : 0,
-      pendingPercentage: totalCount > 0 ? Math.round((pendingCount / totalCount) * 100) : 0
+      total,
+      dueSoon
     };
   } catch (error) {
     console.error('Error getting AME statistics:', error);
@@ -606,42 +556,6 @@ export const searchAMERecords = (searchTerm: string): AMERecord[] => {
     ) as AMERecord[];
   } catch (error) {
     console.error('Error searching AME records:', error);
-    throw error;
-  }
-};
-
-export const getOverdueAMERecords = (): AMERecord[] => {
-  try {
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    const cutoffDate = oneYearAgo.toISOString().split('T')[0];
-    
-    return db.getAllSync(
-      'SELECT * FROM ame_records WHERE ame_date < ? ORDER BY ame_date ASC',
-      [cutoffDate]
-    ) as AMERecord[];
-  } catch (error) {
-    console.error('Error getting overdue AME records:', error);
-    throw error;
-  }
-};
-
-export const getUpcomingAMERecords = (): AMERecord[] => {
-  try {
-    const elevenMonthsAgo = new Date();
-    elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    
-    const startDate = oneYearAgo.toISOString().split('T')[0];
-    const endDate = elevenMonthsAgo.toISOString().split('T')[0];
-    
-    return db.getAllSync(
-      'SELECT * FROM ame_records WHERE ame_date BETWEEN ? AND ? ORDER BY ame_date ASC',
-      [startDate, endDate]
-    ) as AMERecord[];
-  } catch (error) {
-    console.error('Error getting upcoming AME records:', error);
     throw error;
   }
 };
@@ -814,82 +728,29 @@ export const deleteLowMedicalRecord = (id: number): void => {
 
 export const getLowMedicalStatistics = (): {
   total: number;
-  active: number;
-  inactive: number;
-  dueSoon: number;
-  overdue: number;
-  byCategory: { [key: string]: number };
+  nextMedicalBoardAppearSoon: number;
 } => {
   try {
-    const total = db.getFirstSync('SELECT COUNT(*) as count FROM low_medical_records') as { count: number };
-    const active = db.getFirstSync('SELECT COUNT(*) as count FROM low_medical_records WHERE status = "active"') as { count: number };
-    const inactive = db.getFirstSync('SELECT COUNT(*) as count FROM low_medical_records WHERE status = "inactive"') as { count: number };
-    
+    const lmcRecords = db.getAllSync('SELECT last_medical_board_date FROM low_medical_records') as { last_medical_board_date: string }[];
+    const total = lmcRecords.length;
+
+    const today = new Date();
     const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-    const dueSoonDate = thirtyDaysFromNow.toISOString().split('T')[0];
-    const today = new Date().toISOString().split('T')[0];
-    
-    const dueSoon = db.getFirstSync(
-      'SELECT COUNT(*) as count FROM low_medical_records WHERE medical_board_due_date BETWEEN ? AND ? AND status = "active"',
-      [today, dueSoonDate]
-    ) as { count: number };
-    
-    const overdue = db.getFirstSync(
-      'SELECT COUNT(*) as count FROM low_medical_records WHERE medical_board_due_date < ? AND status = "active"',
-      [today]
-    ) as { count: number };
-    
-    const categoryBreakdown = db.getAllSync(
-      'SELECT medical_category, COUNT(*) as count FROM low_medical_records GROUP BY medical_category'
-    ) as { medical_category: string; count: number }[];
-    
-    const byCategory: { [key: string]: number } = {};
-    categoryBreakdown.forEach(item => {
-      byCategory[item.medical_category] = item.count;
-    });
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+    const nextMedicalBoardAppearSoon = lmcRecords.filter(record => {
+      if (!record.last_medical_board_date) return false;
+      const [day, month, year] = record.last_medical_board_date.split('.').map(Number);
+      const appearDate = new Date(year, month - 1, day);
+      return appearDate >= today && appearDate <= thirtyDaysFromNow;
+    }).length;
 
     return {
-      total: total.count,
-      active: active.count,
-      inactive: inactive.count,
-      dueSoon: dueSoon.count,
-      overdue: overdue.count,
-      byCategory
+      total,
+      nextMedicalBoardAppearSoon
     };
   } catch (error) {
-    console.error('Error getting Low Medical Category statistics:', error);
-    throw error;
-  }
-};
-
-export const getDueSoonLowMedicalRecords = (): LowMedicalRecord[] => {
-  try {
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-    const dueSoonDate = thirtyDaysFromNow.toISOString().split('T')[0];
-    const today = new Date().toISOString().split('T')[0];
-    
-    return db.getAllSync(
-      'SELECT * FROM low_medical_records WHERE medical_board_due_date BETWEEN ? AND ? AND status = "active" ORDER BY medical_board_due_date ASC',
-      [today, dueSoonDate]
-    ) as LowMedicalRecord[];
-  } catch (error) {
-    console.error('Error getting due soon Low Medical Category records:', error);
-    throw error;
-  }
-};
-
-export const getOverdueLowMedicalRecords = (): LowMedicalRecord[] => {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    return db.getAllSync(
-      'SELECT * FROM low_medical_records WHERE medical_board_due_date < ? AND status = "active" ORDER BY medical_board_due_date ASC',
-      [today]
-    ) as LowMedicalRecord[];
-  } catch (error) {
-    console.error('Error getting overdue Low Medical Category records:', error);
+    console.error('Error getting Low Medical statistics:', error);
     throw error;
   }
 };
