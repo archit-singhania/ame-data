@@ -1,34 +1,84 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Alert, Animated, Dimensions, StatusBar, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Alert, Animated, Dimensions, StatusBar, Platform, ScrollView, KeyboardAvoidingView, BackHandler, TouchableOpacity } from 'react-native';
 import { Text, TextInput, Button, ActivityIndicator } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as SQLite from 'expo-sqlite';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-
-interface ExtendedViewStyle {
-  backdropFilter?: string;
-}
+import { RootStackParamList } from '../navigation/types';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { initDatabase, loginUser, UserRole } from '../utils/sqlite';
 
 const { width, height } = Dimensions.get('window');
+const isTablet = width >= 768;
+const isLargeTablet = width >= 1024;
+const isSmallScreen = width < 375;
 
-const db = SQLite.openDatabaseSync('healthSync.db');
+const responsive = {
+  getSize: (size: number): number => {
+    if (isLargeTablet) return size * 1.4;
+    if (isTablet) return size * 1.2;
+    if (isSmallScreen) return size * 0.9;
+    return size;
+  },
+  getFontSize: (size: number): number => {
+    if (isLargeTablet) return size * 1.3;
+    if (isTablet) return size * 1.15;
+    if (isSmallScreen) return size * 0.9;
+    return size;
+  },
+  getSpacing: (spacing: number): number => {
+    if (isLargeTablet) return spacing * 1.5;
+    if (isTablet) return spacing * 1.2;
+    if (isSmallScreen) return spacing * 0.8;
+    return spacing;
+  },
+  getCardWidth: (): number => {
+    if (isLargeTablet) return Math.min(width * 0.6, 600);
+    if (isTablet) return Math.min(width * 0.7, 500);
+    return Math.min(width * 0.90, 420);
+  },
+  getIconSize: (size: number): number => {
+    if (isLargeTablet) return size * 1.4;
+    if (isTablet) return size * 1.2;
+    return size;
+  },
+};
 
-export default function LoginPersonnel({ navigation }: any) {
+type LoginPersonnelProps = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
+};
+
+export default function LoginPersonnel({ navigation }: LoginPersonnelProps) {
   const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const floatAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(100)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const particleAnims = useRef(Array.from({ length: 8 }, () => new Animated.Value(0))).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
-  const particleAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    try {
+      initDatabase();
+    } catch (error) {
+      console.error('Database initialization error:', error);
+      Alert.alert('System Error', 'Failed to initialize database');
+    }
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!loading) {
+        navigation.navigate('RoleSelection');
+        return true;
+      }
+      return false;
+    });
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -51,6 +101,21 @@ export default function LoginPersonnel({ navigation }: any) {
 
     Animated.loop(
       Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
         Animated.timing(floatAnim, {
           toValue: 1,
           duration: 4000,
@@ -64,342 +129,526 @@ export default function LoginPersonnel({ navigation }: any) {
       ])
     ).start();
 
+    particleAnims.forEach((anim, index) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 4000 + (index * 600),
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 4000 + (index * 600),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    });
+
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 20000,
+        duration: 25000,
         useNativeDriver: true,
       })
     ).start();
 
     Animated.loop(
       Animated.sequence([
-        Animated.timing(glowAnim, {
+        Animated.timing(shimmerAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 3000,
           useNativeDriver: true,
         }),
-        Animated.timing(glowAnim, {
+        Animated.timing(shimmerAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 3000,
           useNativeDriver: true,
         }),
       ])
     ).start();
 
-    Animated.loop(
-      Animated.timing(particleAnim, {
-        toValue: 1,
-        duration: 8000,
-        useNativeDriver: true,
-      })
-    ).start();
+    return () => backHandler.remove();
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!identity || !password) {
-      Alert.alert('Error', 'Please enter both identity and password');
+      Alert.alert('Incomplete Information', 'Please enter both identity and password to continue');
       return;
     }
 
     setLoading(true);
-
+    
     try {
-      const result = db.getAllSync('SELECT * FROM users WHERE identity = ?', [identity]);
-
-      if (result.length === 0) {
-        Alert.alert('Login Failed', 'No account found with this identity');
-      } else {
-        const user = result[0] as { password: string; name: string };
-        if (user.password === password) {
-          Alert.alert('Success', `Welcome back, ${user.name}`);
-          navigation.navigate('Dashboard');
-        } else {
-          Alert.alert('Login Failed', 'Incorrect password');
-        }
+      const user = loginUser(identity, password, UserRole.PERSONNEL);
+      
+      if (user) {
+        Alert.alert('Welcome Back!', `Hello ${user.full_name}, access granted`);
+        navigation.navigate('Dashboard');
       }
-    } catch (error: any) {
-      console.error('Login Error:', error.message || error);
-      Alert.alert('Error', 'Database error occurred');
+    } catch (error) {
+      const err = error as Error;
+      console.error('Login Error:', err.message);
+      
+      if (err.message.includes('Invalid personnel ID format')) {
+        Alert.alert('Invalid Format', 'Please enter a valid personnel ID format');
+      } else if (err.message.includes('Invalid credentials')) {
+        Alert.alert('Authentication Failed', 'Invalid credentials provided');
+      } else {
+        Alert.alert('System Error', 'Unable to process login request');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const rotateInterpolate = rotateAnim.interpolate({
+  const renderParticle = (index: number) => {
+    const particleSize = responsive.getSize(40 + (index * 8));
+    const positions = [
+      { top: 0.10 * height, left: 0.05 * width, size: particleSize * 2.2 },
+      { top: 0.20 * height, right: 0.08 * width, size: particleSize * 1.5 },
+      { bottom: 0.25 * height, left: 0.03 * width, size: particleSize * 1.8 },
+      { top: 0.35 * height, right: 0.12 * width, size: particleSize * 1.1 },
+      { bottom: 0.35 * height, right: 0.18 * width, size: particleSize * 1.6 },
+      { top: 0.55 * height, left: 0.10 * width, size: particleSize * 1.3 },
+      { bottom: 0.15 * height, right: 0.25 * width, size: particleSize * 1.4 },
+      { top: 0.75 * height, left: 0.08 * width, size: particleSize * 1.7 },
+    ];
+
+    const pos = positions[index];
+    
+    return (
+      <Animated.View
+        key={index}
+        style={[
+          styles.particle,
+          pos,
+          {
+            width: pos.size,
+            height: pos.size,
+            opacity: particleAnims[index].interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [0.15, 0.4, 0.15],
+            }),
+            transform: [
+              {
+                translateY: particleAnims[index].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -40 - (index * 8)],
+                })
+              },
+              {
+                translateX: particleAnims[index].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, (index % 2 === 0 ? 15 : -15)],
+                })
+              },
+              {
+                scale: particleAnims[index].interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [0.7, 1.3, 0.7],
+                })
+              }
+            ]
+          }
+        ]}
+      >
+        <LinearGradient
+          colors={['rgba(102, 126, 234, 0.7)', 'rgba(118, 75, 162, 0.5)']}
+          style={styles.particleGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </Animated.View>
+    );
+  };
+
+  const renderFloatingElement = (index: number) => {
+    const elements: Array<{
+      colors: readonly [string, string, ...string[]]; 
+      size: number;
+      top?: number;
+      bottom?: number;
+      left?: number;
+      right?: number;
+    }> = [
+      { 
+        colors: ['rgba(102, 126, 234, 0.6)', 'rgba(118, 75, 162, 0.6)'] as const, 
+        size: responsive.getSize(120),
+        top: 0.08 * height,
+        left: 0.08 * width,
+      },
+      { 
+        colors: ['rgba(255, 94, 77, 0.5)', 'rgba(255, 154, 0, 0.5)'] as const, 
+        size: responsive.getSize(80),
+        top: 0.15 * height,
+        right: 0.10 * width,
+      },
+      { 
+        colors: ['rgba(67, 206, 162, 0.4)', 'rgba(24, 90, 157, 0.4)'] as const, 
+        size: responsive.getSize(100),
+        bottom: 0.12 * height,
+        left: 0.05 * width,
+      },
+    ];
+
+    const element = elements[index];
+    if (!element) return null;
+
+    return (
+      <Animated.View
+        key={`floating-${index}`}
+        style={[
+          styles.floatingElement,
+          {
+            width: element.size,
+            height: element.size,
+            top: element.top,
+            bottom: element.bottom,
+            left: element.left,
+            right: element.right,
+            transform: [
+              {
+                translateY: floatAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, index % 2 === 0 ? -30 : 25],
+                })
+              },
+              {
+                rotate: rotateAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [index % 2 === 0 ? '0deg' : '360deg', index % 2 === 0 ? '360deg' : '0deg'],
+                })
+              }
+            ]
+          }
+        ]}
+      >
+        <LinearGradient
+          colors={element.colors}
+          style={styles.elementGradient}
+        />
+      </Animated.View>
+    );
+  };
+
+  const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
+  const shimmerTranslate = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-250, 250],
+  });
+
+  const backButtonTop = Platform.OS === 'android'
+    ? responsive.getSpacing(40) + (StatusBar.currentHeight || 0)
+    : responsive.getSpacing(60);
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="rgba(15, 12, 41, 0.9)"
+        translucent={true}
+      />
       
       <LinearGradient
         colors={[
-          '#0F0C29',   
-          '#24243e',  
-          '#302b63',  
-          '#24243e',  
-          '#0F0C29'   
+          '#0F0C29',
+          '#24243e',
+          '#302b63',
+          '#24243e',
+          '#0F0C29'
         ]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {[...Array(6)].map((_, index) => (
-          <Animated.View
-            key={index}
+        <Animated.View
+          style={[
+            styles.backgroundPattern,
+            { transform: [{ rotate: spin }] }
+          ]}
+        >
+          <LinearGradient
+            colors={['rgba(102, 126, 234, 0.3)', 'rgba(48, 43, 99, 0.3)']}
+            style={styles.patternGradient}
+          />
+        </Animated.View>
+
+        {Array.from({ length: 8 }).map((_, index) => renderParticle(index))}
+        {Array.from({ length: 3 }).map((_, index) => renderFloatingElement(index))}
+
+        <Animated.View
+          style={[
+            styles.backButton,
+            {
+              transform: [{ scale: pulseAnim }],
+              position: 'absolute',
+              top: backButtonTop,
+              left: responsive.getSpacing(20),
+              zIndex: 200,
+            }
+          ]}
+        >
+          <TouchableOpacity
+            onPress={() => navigation.navigate('RoleSelection')}
+            disabled={loading}
             style={[
-              styles.particle,
+              styles.backButtonStyleGlassEnhanced,
               {
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                transform: [{
-                  translateY: particleAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, (Math.random() - 0.5) * 200],
-                  })
-                }, {
-                  translateX: particleAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, (Math.random() - 0.5) * 100],
-                  })
-                }],
-                opacity: particleAnim.interpolate({
-                  inputRange: [0, 0.5, 1],
-                  outputRange: [0.3, 0.8, 0.3],
-                })
-              }
+                width: responsive.getSpacing(45),
+                height: responsive.getSpacing(45),
+                justifyContent: 'center',
+                alignItems: 'center'
+              },
+              loading && { transform: [{ scale: 0.95 }], opacity: 0.6 }
             ]}
-          />
-        ))}
-
-        <Animated.View 
-          style={[
-            styles.floatingElement,
-            styles.element1,
-            {
-              transform: [
-                {
-                  translateY: floatAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -30],
-                  })
-                },
-                { rotate: rotateInterpolate }
-              ]
-            }
-          ]}
-        >
-          <LinearGradient
-            colors={['rgba(102, 126, 234, 0.8)', 'rgba(118, 75, 162, 0.8)']}
-            style={styles.elementGradient}
-          />
-        </Animated.View>
-
-        <Animated.View 
-          style={[
-            styles.floatingElement,
-            styles.element2,
-            {
-              transform: [
-                {
-                  translateY: floatAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 25],
-                  })
-                },
-                { 
-                  rotate: rotateAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0deg', '-360deg'],
-                  })
-                }
-              ]
-            }
-          ]}
-        >
-          <LinearGradient
-            colors={['rgba(255, 94, 77, 0.7)', 'rgba(255, 154, 0, 0.7)']}
-            style={styles.elementGradient}
-          />
-        </Animated.View>
-
-        <Animated.View 
-          style={[
-            styles.floatingElement,
-            styles.element3,
-            {
-              transform: [
-                {
-                  translateY: floatAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -15],
-                  })
-                },
-                { rotate: rotateInterpolate }
-              ]
-            }
-          ]}
-        >
-          <LinearGradient
-            colors={['rgba(67, 206, 162, 0.6)', 'rgba(24, 90, 157, 0.6)']}
-            style={styles.elementGradient}
-          />
-        </Animated.View>
-
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.navigate('RoleSelection')}
-          disabled={loading}
-        >
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
-            style={styles.backButtonGradient}
+            activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </LinearGradient>
-        </TouchableOpacity>
+            <Ionicons
+              name="chevron-back"
+              size={responsive.getIconSize(32)}
+              color="rgba(226, 232, 240, 0.95)"
+              style={{
+                textShadowColor: 'rgba(102, 126, 234, 0.8)',
+                textShadowOffset: { width: 1, height: 1 },
+                textShadowRadius: 3,
+              }}
+            />
+          </TouchableOpacity>
+        </Animated.View>
 
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.navigate('RoleSelection')}
-          disabled={loading}
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
         >
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
-            style={styles.backButtonGradient}
+          <ScrollView
+            contentContainerStyle={styles.scrollContainer}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={true}
+            alwaysBounceVertical={false}
+            nestedScrollEnabled={true}
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <Animated.View 
-          style={[
-            styles.formContainer,
-            {
-              opacity: fadeAnim,
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim }
-              ]
-            }
-          ]}
-        >
-          <View style={styles.glassOverlay} />
-          
-          <View style={styles.header}>
-            <Animated.View style={[styles.iconContainer, {
-              transform: [{
-                scale: pulseAnim
-              }]
-            }]}>
-              <LinearGradient
-                colors={['#667eea', '#764ba2']}
-                style={styles.iconGradient}
-              >
-                <Ionicons name="medical" size={32} color="white" />
-              </LinearGradient>
-            </Animated.View>
-            
-            <Text style={styles.heading}>Welcome Back</Text>
-            <Text style={styles.subheading}>Healthcare Professional Portal</Text>
-            <View style={styles.divider} />
-          </View>
-          
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <TextInput
-                label="Identity"
-                mode="outlined"
-                value={identity}
-                onChangeText={setIdentity}
-                keyboardType="email-address"
-                style={styles.input}
-                autoCapitalize="none"
-                disabled={loading}
-                left={<TextInput.Icon icon="account" />}
-                theme={{
-                  colors: {
-                    primary: '#667eea',
-                    background: 'rgba(255, 255, 255, 0.9)',
-                    outline: 'rgba(102, 126, 234, 0.3)',
-                  }
-                }}
-              />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <TextInput
-                label="Password"
-                mode="outlined"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                style={styles.input}
-                disabled={loading}
-                left={<TextInput.Icon icon="lock" />}
-                right={
-                  <TextInput.Icon 
-                    icon={showPassword ? "eye-off" : "eye"} 
-                    onPress={() => setShowPassword(!showPassword)}
-                  />
+            <Animated.View
+              style={[
+                styles.contentWrapper,
+                {
+                  opacity: fadeAnim,
+                  transform: [
+                    { translateY: slideAnim },
+                    { scale: scaleAnim }
+                  ]
                 }
-                theme={{
-                  colors: {
-                    primary: '#667eea',
-                    background: 'rgba(255, 255, 255, 0.9)',
-                    outline: 'rgba(102, 126, 234, 0.3)',
-                  }
-                }}
-              />
-            </View>
-            
-            <TouchableOpacity 
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
+              ]}
             >
-              <LinearGradient
-                colors={loading ? ['#ccc', '#999'] : ['#667eea', '#764ba2']}
-                style={styles.loginButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+              <BlurView
+                intensity={Platform.OS === 'android' ? 35 : 25}
+                tint="light"
+                style={styles.glassCard}
               >
-                {loading ? (
-                  <ActivityIndicator color="white" size={24} />
-                ) : (
-                  <>
-                    <Text style={styles.loginButtonText}>Sign In</Text>
-                    <Ionicons name="arrow-forward" size={20} color="white" />
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+                <View style={styles.cardOverlay}>
+                  <Animated.View
+                    style={[
+                      styles.shimmer,
+                      {
+                        transform: [{ translateX: shimmerTranslate }]
+                      }
+                    ]}
+                  />
+                  
+                  <View style={styles.header}>
+                    <Animated.View
+                      style={[
+                        styles.iconContainer,
+                        { transform: [{ scale: pulseAnim }] }
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2']}
+                        style={styles.iconGradient}
+                      >
+                        <Ionicons
+                          name="people"
+                          size={responsive.getIconSize(40)}
+                          color="white"
+                        />
+                      </LinearGradient>
+                    </Animated.View>
+                    <Text style={styles.welcomeText}>Unit Personnel</Text>
+                    <Text style={styles.subtitleText}>Details & Records Access Portal</Text>
+                  </View>
+
+                  <View style={styles.formSection}>
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        label="Personnel Identity"
+                        mode="outlined"
+                        value={identity}
+                        onChangeText={setIdentity}
+                        keyboardType="default"
+                        style={[styles.input, {
+                          fontWeight: '700',
+                          fontSize: responsive.getFontSize(16)
+                        }]}
+                        autoCapitalize="none"
+                        disabled={loading}
+                        left={<TextInput.Icon icon="account-circle" />}
+                        dense={Platform.OS === 'android'}
+                        contentStyle={Platform.OS === 'android' ? { paddingVertical: 8 } : {}}
+                        placeholder="Enter your personnel ID"
+                        theme={{
+                          colors: {
+                            primary: '#667eea',
+                            background: 'rgba(255,255,255,0.95)',
+                            outline: 'rgba(102, 126, 234, 0.3)',
+                            onSurfaceVariant: 'rgba(0,0,0,0.6)',
+                          }
+                        }}
+                      />
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        label="Secure Password"
+                        mode="outlined"
+                        secureTextEntry={!showPassword}
+                        value={password}
+                        onChangeText={setPassword}
+                        style={[styles.input, {
+                          fontWeight: '700',
+                          fontSize: responsive.getFontSize(16)
+                        }]}
+                        disabled={loading}
+                        left={<TextInput.Icon icon="lock" />}
+                        dense={Platform.OS === 'android'}
+                        contentStyle={Platform.OS === 'android' ? { paddingVertical: 8 } : {}}
+                        right={
+                          <TextInput.Icon
+                            icon={showPassword ? "eye-off" : "eye"}
+                            onPress={() => setShowPassword(!showPassword)}
+                          />
+                        }
+                        theme={{
+                          colors: {
+                            primary: '#667eea',
+                            background: 'rgba(255,255,255,0.95)',
+                            outline: 'rgba(102, 126, 234, 0.3)',
+                            onSurfaceVariant: 'rgba(0,0,0,0.6)',
+                          }
+                        }}
+                      />
+                    </View>
+
+                    <View style={styles.buttonContainer}>
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2', '#667eea']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.gradientWrapper}
+                      >
+                        <Button
+                          mode="contained"
+                          onPress={handleLogin}
+                          disabled={loading}
+                          contentStyle={styles.loginButtonContent}
+                          labelStyle={styles.loginButtonText}
+                          style={[styles.loginButton, { backgroundColor: 'transparent' }]}
+                          rippleColor="rgba(255, 255, 255, 0.3)"
+                        >
+                          {loading ? (
+                            <View style={styles.loadingContainer}>
+                              <ActivityIndicator color="#fff" size="small" />
+                              <Text style={styles.loadingText}>Authenticating...</Text>
+                            </View>
+                          ) : (
+                            <View style={styles.buttonTextContainer}>
+                              <Text style={styles.loginButtonText}>Access Portal</Text>
+                              <Ionicons
+                                name="arrow-forward"
+                                size={responsive.getIconSize(20)}
+                                color="#fff"
+                              />
+                            </View>
+                          )}
+                        </Button>
+                      </LinearGradient>
+                    </View>
+                  </View>
+                </View>
+              </BlurView>
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   gradient: {
     flex: 1,
+    position: 'relative',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingTop: Platform.OS === 'android'
+      ? responsive.getSpacing(80) + (StatusBar.currentHeight || 0)
+      : responsive.getSpacing(100),
+    paddingBottom: responsive.getSpacing(40),
+    paddingHorizontal: responsive.getSpacing(16),
+    minHeight: height,
+  },
+  contentWrapper: {
+    width: '100%',
+    maxWidth: responsive.getCardWidth(),
+    alignItems: 'center',
+  },
+  backButton: {
+    shadowColor: '#667eea',
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: 0.9,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  backgroundPattern: {
+    position: 'absolute',
+    width: width * 2,
+    height: height * 2,
+    borderRadius: width,
+    top: -width / 2,
+    left: -width / 2,
+  },
+  patternGradient: {
+    flex: 1,
+    borderRadius: width,
   },
   particle: {
     position: 'absolute',
-    width: 4,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    borderRadius: 2,
+    borderRadius: 100,
+    overflow: 'hidden',
+  },
+  particleGradient: {
+    flex: 1,
+    borderRadius: 100,
   },
   floatingElement: {
     position: 'absolute',
@@ -410,152 +659,173 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 100,
   },
-  element1: {
-    width: 120,
-    height: 120,
-    top: '8%',
-    left: '8%',
+  backButtonStyleGlassEnhanced: {
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    borderRadius: responsive.getSize(25),
+    borderWidth: 2,
+    borderColor: 'rgba(102, 126, 234, 0.7)',
+    overflow: 'hidden',
+    elevation: Platform.OS === 'android' ? 8 : 0,
   },
-  element2: {
-    width: 80,
-    height: 80,
-    top: '15%',
-    right: '10%',
-  },
-  element3: {
-    width: 140,
-    height: 140,
-    bottom: '12%',
-    left: '5%',
-    opacity: 0.7,
-  },
-  glowEffect: {
-    position: 'absolute',
-    width: width * 0.8,
-    height: width * 0.8,
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-    borderRadius: width * 0.4,
-    top: '20%',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    zIndex: 10,
-  },
-  backButtonGradient: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  formContainer: {
-    borderRadius: 30,
-    padding: 35,
+  glassCard: {
     width: '100%',
-    maxWidth: 420,
+    borderRadius: responsive.getSize(25),
+    overflow: 'hidden',
+    elevation: Platform.OS === 'android' ? 24 : 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.25,
-    shadowRadius: 25,
-    elevation: 15,
-    overflow: 'hidden',
+    shadowOpacity: 0.4,
+    shadowRadius: 30,
   },
-  glassOverlay: {
+  cardOverlay: {
+    backgroundColor: Platform.OS === 'android'
+      ? 'rgba(20, 20, 35, 0.65)'
+      : 'rgba(20, 20, 35, 0.55)',
+    padding: responsive.getSpacing(30),
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: responsive.getSize(25),
+    borderWidth: 1.5,
+    borderColor: 'rgba(102, 126, 234, 0.4)',
+    shadowColor: 'rgba(102, 126, 234, 0.25)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: Platform.OS === 'android' ? 16 : 12,
+  },
+  shimmer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    width: responsive.getSize(350),
+    transform: [{ skewX: '-20deg' }],
   },
   header: {
     alignItems: 'center',
-    marginBottom: 35,
-    zIndex: 1,
+    marginBottom: responsive.getSpacing(35),
   },
   iconContainer: {
-    marginBottom: 20,
+    marginBottom: responsive.getSpacing(20),
+    borderRadius: responsive.getSize(35),
+    overflow: 'hidden',
+    elevation: Platform.OS === 'android' ? 12 : 10,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
   },
   iconGradient: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: responsive.getSize(70),
+    height: responsive.getSize(70),
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 8,
   },
-  heading: { 
-    fontSize: 32, 
+  welcomeText: {
+    fontSize: responsive.getFontSize(isLargeTablet ? 38 : isTablet ? 34 : 30),
     fontWeight: '800',
-    color: 'white',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    color: '#667eea',
+    marginBottom: responsive.getSpacing(8),
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 8,
+    letterSpacing: 1,
+    textAlign: 'center',
+    ...(Platform.OS === 'android' && {
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    }),
   },
-  subheading: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+  subtitleText: {
+    fontSize: responsive.getFontSize(16),
+    color: 'rgba(255,255,255,0.8)',
     fontWeight: '500',
-    marginBottom: 20,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    ...(Platform.OS === 'android' && {
+      includeFontPadding: false,
+    }),
   },
-  divider: {
-    width: 60,
-    height: 3,
-    backgroundColor: '#667eea',
-    borderRadius: 2,
-  },
-  form: {
-    gap: 20,
-    zIndex: 1,
+  formSection: {
+    gap: responsive.getSpacing(22),
   },
   inputContainer: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    position: 'relative',
   },
-  input: { 
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 15,
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: responsive.getSize(12),
+    elevation: Platform.OS === 'android' ? 8 : 5,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    fontSize: responsive.getFontSize(16),
+    ...(Platform.OS === 'android' && {
+      includeFontPadding: false,
+    }),
+  },
+  buttonContainer: {
+    marginTop: responsive.getSpacing(15),
+  },
+  gradientWrapper: {
+    borderRadius: responsive.getSize(18),
+    padding: 2,
+    overflow: 'hidden',
+    alignSelf: 'center',
+    width: isLargeTablet ? '60%' : isTablet ? '70%' : '80%',
+    elevation: Platform.OS === 'android' ? 12 : 0,
   },
   loginButton: {
-    marginTop: 15,
-    borderRadius: 25,
-    overflow: 'hidden',
+    borderRadius: responsive.getSize(18),
+    elevation: Platform.OS === 'android' ? 12 : 10,
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.5,
     shadowRadius: 15,
-    elevation: 8,
     alignSelf: 'center',
-    width: '70%'
+    width: '100%',
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
-  loginButtonDisabled: {
-    shadowOpacity: 0.1,
-  },
-  loginButtonGradient: {
-    height: 55,
-    flexDirection: 'row',
+  loginButtonContent: {
+    height: responsive.getSize(50),
+    paddingHorizontal: responsive.getSpacing(10),
     justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  buttonTextContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: responsive.getSpacing(10),
+    justifyContent: 'center',
   },
   loginButtonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: responsive.getFontSize(17),
     fontWeight: '700',
-  }
+    letterSpacing: 1,
+    ...(Platform.OS === 'android' && {
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    }),
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: responsive.getSpacing(12),
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: responsive.getFontSize(16),
+    fontWeight: '600',
+    ...(Platform.OS === 'android' && {
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    }),
+  },
 });

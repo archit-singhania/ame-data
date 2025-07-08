@@ -46,32 +46,6 @@ export interface User {
   created_at: string;
 }
 
-export interface AMERecord {
-  id?: number;
-  s_no: number;
-  personnel_id: string;           
-  rank: string;
-  full_name: string;
-  unit: string;                    
-  age?: number;
-  height?: number;                
-  weight?: number;                 
-  chest?: number;                 
-  waist_hip_ratio?: number;
-  bmi?: number;
-  pulse?: number;
-  blood_group?: string;
-  blood_pressure?: string;
-  vision?: string;
-  previous_medical_category?: string;
-  date_of_ame: string;
-  present_category_awarded?: string;
-  category_reason?: string;
-  remarks?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
 const db = SQLite.openDatabaseSync('healthSync.db');
 
 export const initDatabase = (): void => {
@@ -104,43 +78,14 @@ export const initDatabase = (): void => {
 
     createAMETable();
     
-    createDefaultAdmin();
-    
   } catch (error) {
     console.error('Error creating database tables:', error);
     throw error;
   }
 };
 
-const createDefaultAdmin = (): void => {
-  try {
-    const existingAdmin = db.getFirstSync('SELECT * FROM users WHERE role = ?', ['admin']);
-    if (!existingAdmin) {
-      db.runSync(
-        'INSERT INTO users (full_name, rank, regt_id_irla_no, identity, password, role) VALUES (?, ?, ?, ?, ?, ?)',
-        ['Default Admin', 'Administrator', 'ADMIN001', 'admin', 'admin123', 'admin']
-      );
-    }
-  } catch (error) {
-    console.error('Error creating default admin:', error);
-  }
-};
-
 const validateIdentity = (identity: string, role: UserRole): boolean => {
-  switch (role) {
-    case UserRole.ADMIN:
-      return identity.length >= 3;
-    case UserRole.DOCTOR:
-      return /^[A-Z]{2,4}\d{4,6}$/.test(identity);
-    case UserRole.PERSONNEL:
-      return /^[A-Z0-9]{4,10}$/.test(identity);
-    default:
-      return false;
-  }
-};
-
-const validatePassword = (password: string): boolean => {
-  return password.length >= 6 && /[a-zA-Z]/.test(password) && /\d/.test(password);
+  return /^\d{8,9}$/.test(identity);
 };
 
 export const registerUser = (
@@ -158,29 +103,20 @@ export const registerUser = (
       throw new Error('Only admin can register new users');
     }
 
-    if (!validateIdentity(identity, role)) {
-      throw new Error(`Invalid identity format for ${role}`);
-    }
+    const validatePassword = (password: string): boolean => {
+      return password.length >= 8 && 
+            /[a-zA-Z]/.test(password) && 
+            /\d/.test(password) && 
+            /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    };
 
     if (!validatePassword(password)) {
-      throw new Error('Password must be at least 6 characters with letters and numbers');
+      throw new Error('Password must be at least 8 characters with letters, numbers, and special characters');
     }
 
     const existingUser = db.getFirstSync('SELECT * FROM users WHERE identity = ?', [identity]);
     if (existingUser) {
       throw new Error('Identity already exists');
-    }
-
-    if (role === UserRole.ADMIN && identity !== password) {
-      throw new Error('For admin users, identity and password must be the same');
-    }
-
-    if (role === UserRole.DOCTOR && regtIdIrlaNo !== identity) {
-      throw new Error('For doctors, IRLA number must match identity');
-    }
-
-    if (role === UserRole.PERSONNEL && regtIdIrlaNo !== identity) {
-      throw new Error('For personnel, IRLA/Regt no must match identity');
     }
 
     const result = db.runSync(
@@ -197,34 +133,42 @@ export const registerUser = (
 
 export const loginUser = (identity: string, password: string, role: UserRole): User | null => {
   try {
+    const user = db.getFirstSync(
+      'SELECT * FROM users WHERE identity = ? AND password = ?',
+      [identity, password]
+    ) as User | null;
+
+    if (!user) {
+      throw new Error('Invalid credentials');
+    }
+
     switch (role) {
       case UserRole.ADMIN:
-        if (identity !== password) {
-          throw new Error('Invalid admin credentials');
+        if (user.role !== UserRole.ADMIN) {
+          throw new Error('Access denied: Admin privileges required');
         }
         break;
+
       case UserRole.DOCTOR:
+        if (user.role !== UserRole.DOCTOR) {
+          throw new Error('Access denied: Doctor privileges required');
+        }
         if (!validateIdentity(identity, UserRole.DOCTOR)) {
           throw new Error('Invalid doctor IRLA number format');
         }
         break;
+
       case UserRole.PERSONNEL:
+        if (user.role !== UserRole.PERSONNEL && user.role !== UserRole.ADMIN) {
+          throw new Error('Access denied: Personnel privileges required');
+        }
         if (!validateIdentity(identity, UserRole.PERSONNEL)) {
           throw new Error('Invalid personnel IRLA/Regt number format');
         }
         break;
     }
 
-    const result = db.getFirstSync(
-      'SELECT * FROM users WHERE identity = ? AND password = ? AND role = ?',
-      [identity, password, role]
-    );
-    
-    if (result) {
-      return result as User;
-    } else {
-      throw new Error('Invalid credentials');
-    }
+    return user;
   } catch (error) {
     console.error('Error logging in user:', error);
     throw error;
@@ -316,6 +260,32 @@ export const insertRecord = (tableName: string, data: Record<string, any>): numb
     throw error;
   }
 };
+
+export interface AMERecord {
+  id?: number;
+  s_no: number;
+  personnel_id: string;           
+  rank: string;
+  full_name: string;
+  unit: string;                    
+  age?: number;
+  height?: number;                
+  weight?: number;                 
+  chest?: number;                 
+  waist_hip_ratio?: number;
+  bmi?: number;
+  pulse?: number;
+  blood_group?: string;
+  blood_pressure?: string;
+  vision?: string;
+  previous_medical_category?: string;
+  date_of_ame: string;
+  present_category_awarded?: string;
+  category_reason?: string;
+  remarks?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export const createAMETable = (): void => {
   try {

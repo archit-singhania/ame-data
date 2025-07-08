@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -7,176 +7,302 @@ import {
   StatusBar,
   Alert,
   TouchableOpacity,
-  ScrollView
+  Platform,
+  Easing,
+  Image
 } from 'react-native';
-import { Text, Button, TextInput, Card, Chip, Menu, Divider } from 'react-native-paper';
+import { Text, TextInput, Menu } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as SQLite from 'expo-sqlite';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
+import { initDatabase, registerUser, UserRole } from '../utils/sqlite';
 
 const { width, height } = Dimensions.get('window');
-
-interface User {
-  id?: number;
-  name: string;
-  rank: string;
-  regt_id: string;
-  identity: string;
-  password: string;
-  role: 'admin' | 'doctor' | 'personnel';
-  created_at?: string;
-  created_by?: number;
-}
-
-interface SQLTransaction {
-  executeSql: (
-    sqlStatement: string,
-    args?: any[],
-    callback?: SQLStatementCallback,
-    errorCallback?: SQLStatementErrorCallback
-  ) => void;
-}
-
-interface SQLResultSet {
-  insertId?: number;
-  rowsAffected: number;
-  rows: SQLResultSetRowList;
-}
-
-interface SQLResultSetRowList {
-  length: number;
-  item(index: number): any;
-  _array: any[];
-}
-
-type SQLStatementCallback = (transaction: SQLTransaction, resultSet: SQLResultSet) => void;
-type SQLStatementErrorCallback = (transaction: SQLTransaction, error: SQLError) => boolean;
-
-interface SQLError {
-  code: number;
-  message: string;
-}
-
-const db = SQLite.openDatabaseSync('healthSync.db');
+const isTablet = width >= 768;
+const isLargeTablet = width >= 1024;
+const isSmallScreen = width < 375;
+const responsive = {
+  getSize: (size: number): number => {
+    if (isLargeTablet) return size * 1.4;
+    if (isTablet) return size * 1.2;
+    if (isSmallScreen) return size * 0.9;
+    return size;
+  },
+  getFontSize: (size: number): number => {
+    if (isLargeTablet) return size * 1.3;
+    if (isTablet) return size * 1.15;
+    if (isSmallScreen) return size * 0.9;
+    return size;
+  },
+  getSpacing: (spacing: number): number => {
+    if (isLargeTablet) return spacing * 1.5;
+    if (isTablet) return spacing * 1.2;
+    if (isSmallScreen) return spacing * 0.8;
+    return spacing;
+  },
+  getCardWidth: (): number => {
+    if (isLargeTablet) return Math.min(width * 0.6, 600);
+    if (isTablet) return Math.min(width * 0.7, 500);
+    return Math.min(width * 0.90, 420);
+  },
+  getIconSize: (size: number): number => {
+    if (isLargeTablet) return size * 1.4;
+    if (isTablet) return size * 1.2;
+    return size;
+  },
+};
 
 type RegisterScreenProps = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
 export default function RegisterScreen({ navigation, route }: RegisterScreenProps) {
   const currentUser = route?.params?.currentUser;
-
   const [name, setName] = useState<string>('');
   const [rank, setRank] = useState<string>('');
   const [regtId, setRegtId] = useState<string>('');
   const [identity, setIdentity] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
-  const [selectedRole, setSelectedRole] = useState<'admin' | 'doctor' | 'personnel'>('personnel');
+  const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.PERSONNEL);
   const [loading, setLoading] = useState<boolean>(false);
   const [personnelIdType, setPersonnelIdType] = useState<'regt' | 'irla'>('regt');
   const [menuVisible, setMenuVisible] = useState<boolean>(false);
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const masterFadeAnim = useRef(new Animated.Value(0)).current;
+  const headerSlideAnim = useRef(new Animated.Value(-100)).current;
+  const logoScaleAnim = useRef(new Animated.Value(0)).current;
+  const logoRotateAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const inputAnimations = useRef([
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0)
-  ]).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const breatheAnim = useRef(new Animated.Value(0)).current;
+  const waveAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const particleCount = isLargeTablet ? 18 : isTablet ? 15 : isSmallScreen ? 8 : 12;
+  const particleAnims = useRef(Array.from({ length: particleCount }, () => new Animated.Value(0))).current;
+  const inputAnimationCount = 8;
+  const inputAnimations = useRef(Array.from({ length: inputAnimationCount }, () => ({
+    opacity: new Animated.Value(0),
+    translateX: new Animated.Value(60),
+    scale: new Animated.Value(0.9),
+    rotate: new Animated.Value(0)
+  }))).current;
 
-  const initDatabase = (): void => {
-    try {
-      const tableExists = db.getAllSync("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
-      
-      if (tableExists.length > 0) {
-        const tableInfo = db.getAllSync("PRAGMA table_info(users)") as { name: string }[];
-        const hasRoleColumn = tableInfo.some(col => col.name === "role");
-        
-        if (!hasRoleColumn) {
-          db.execSync("DROP TABLE IF EXISTS users");
-        }
-      }
+  const roleChipAnims = useRef(Array.from({ length: 3 }, () => ({
+    scale: new Animated.Value(0.8),
+    opacity: new Animated.Value(0),
+    bounce: new Animated.Value(0)
+  }))).current;
 
-      db.execSync(
-        `CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          rank TEXT NOT NULL,
-          regt_id TEXT NOT NULL,
-          identity TEXT UNIQUE NOT NULL,
-          password TEXT NOT NULL,
-          role TEXT NOT NULL CHECK (role IN ('admin', 'doctor', 'personnel')),
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          created_by INTEGER,
-          FOREIGN KEY (created_by) REFERENCES users(id)
-        )`
-      );
+  const buttonPulseAnim = useRef(new Animated.Value(1)).current;
+  const successAnim = useRef(new Animated.Value(0)).current;
 
-      const adminExists = db.getAllSync('SELECT * FROM users WHERE role = ?', ['admin']);
-      if (adminExists.length === 0) {
-        db.runSync(
-          'INSERT INTO users (name, rank, regt_id, identity, password, role) VALUES (?, ?, ?, ?, ?, ?)',
-          ['Default Admin', 'Admin', 'admin', 'admin', 'admin', 'admin']
-        );
-      }
-    } catch (error) {
-      console.error('Error creating database:', error);
-    }
-  };
-
-  const validateIdentity = (identity: string, role: string): boolean => {
+  const getIdentityLabel = (role: UserRole): string => {
+    const officerRanks = ['COMDT', '2IC', 'DC', 'AC'];
+    
     switch (role) {
-      case 'admin':
-        return identity.length >= 3;
-      case 'doctor':
-      case 'personnel':
-        return /^\d{8,10}$/.test(identity);
-      default:
-        return false;
-    }
-  };
-
-  const validateRegtId = (regtId: string, role: string): boolean => {
-    switch (role) {
-      case 'admin':
-        return regtId.length >= 3;
-      case 'doctor':
-        return /^\d{8,10}$/.test(regtId);
-      case 'personnel':
-        return /^\d{8,10}$/.test(regtId) || /^[A-Z0-9]{6,12}$/.test(regtId);
-      default:
-        return false;
-    }
-  };
-
-  const getIdentityLabel = (role: string): string => {
-    switch (role) {
-      case 'admin':
-        return 'Admin Identity';
-      case 'doctor':
-        return 'IRLA Number (8-10 digits)';
-      case 'personnel':
-        return personnelIdType === 'irla' ? 'IRLA Number (8-10 digits)' : 'Regt Number (8-10 digits)';
+      case UserRole.ADMIN:
+        return officerRanks.includes(rank) ? 'Admin IRLA Number' : 'Admin Regt. ID';
+      case UserRole.DOCTOR:
+        return 'IRLA Number';
+      case UserRole.PERSONNEL:
+        return officerRanks.includes(rank) ? 'IRLA Number' : 'Regt. ID';
       default:
         return 'Identity';
     }
   };
 
-  const getRegtIdLabel = (role: string): string => {
+  const getRegtIdLabel = (role: UserRole): string => {
+    const officerRanks = ['COMDT', '2IC', 'DC', 'AC'];
+    
     switch (role) {
-      case 'doctor':
+      case UserRole.DOCTOR:
         return 'IRLA Number (Doctor)';
-      case 'personnel':
-        return personnelIdType === 'irla' ? 'IRLA Number' : 'Regt ID';
+      case UserRole.PERSONNEL:
+        return officerRanks.includes(rank) ? 'IRLA Number' : 'Regt ID';
+      case UserRole.ADMIN:
+        return officerRanks.includes(rank) ? 'Admin IRLA Number' : 'Admin Regt. ID';
       default:
         return 'Registration ID';
     }
+  };
+
+  const startContinuousAnimations = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(breatheAnim, {
+          toValue: 1,
+          duration: 4000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(breatheAnim, {
+          toValue: 0,
+          duration: 4000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.timing(waveAnim, {
+        toValue: 1,
+        duration: 3000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    particleAnims.forEach((anim, index) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 4000 + (index * 200),
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 4000 + (index * 200),
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    });
+
+    Animated.loop(
+      Animated.timing(logoRotateAnim, {
+        toValue: 1,
+        duration: 20000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  };
+
+  const startEntranceAnimations = () => {
+    Animated.timing(masterFadeAnim, {
+      toValue: 1,
+      duration: 1200,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+
+    Animated.timing(headerSlideAnim, {
+      toValue: 0,
+      duration: 1000,
+      easing: Easing.elastic(1.2),
+      useNativeDriver: true,
+    }).start();
+
+    Animated.sequence([
+      Animated.timing(logoScaleAnim, {
+        toValue: 1.2,
+        duration: 800,
+        easing: Easing.elastic(1.5),
+        useNativeDriver: true,
+      }),
+      Animated.timing(logoScaleAnim, {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    Animated.stagger(150, 
+      roleChipAnims.map(({ scale, opacity, bounce }) => 
+        Animated.parallel([
+          Animated.timing(scale, {
+            toValue: 1,
+            duration: 600,
+            easing: Easing.elastic(1.2),
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    ).start();
+
+    Animated.stagger(100, 
+      inputAnimations.map(({ opacity, translateX, scale }) => 
+        Animated.parallel([
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateX, {
+            toValue: 0,
+            duration: 800,
+            easing: Easing.elastic(1.1),
+            useNativeDriver: true,
+          }),
+          Animated.timing(scale, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    ).start();
   };
 
   useEffect(() => {
@@ -186,85 +312,20 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       ]);
       return;
     }
-
+    
     initDatabase();
     
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    const inputStagger = Animated.stagger(200, 
-      inputAnimations.map(anim => 
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        })
-      )
-    );
-
-    setTimeout(() => inputStagger.start(), 400);
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    setTimeout(() => {
+      startEntranceAnimations();
+      startContinuousAnimations();
+    }, 300);
   }, [currentUser]);
 
   useEffect(() => {
-    if (selectedRole === 'admin') {
-      setRegtId(identity);
-      setPassword(identity);
-      setConfirmPassword(identity);
-    } else if (selectedRole === 'doctor') {
-      setRegtId(identity);
-      setPassword(identity);
-      setConfirmPassword(identity);
-    } else if (selectedRole === 'personnel') {
-      setRegtId(identity);
-      setPassword(identity);
-      setConfirmPassword(identity);
+    if (password) {
+      setConfirmPassword(password);
     }
-  }, [identity, selectedRole]);
+  }, [password]);
 
   useEffect(() => {
     setName('');
@@ -274,23 +335,63 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     setPassword('');
     setConfirmPassword('');
     setPersonnelIdType('regt');
+    
+    Animated.parallel([
+      ...inputAnimations.map(({ opacity, translateX, scale }) => 
+        Animated.parallel([
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateX, {
+            toValue: 30,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    ]).start(() => {
+      setTimeout(() => {
+        Animated.stagger(50, 
+          inputAnimations.map(({ opacity, translateX, scale }) => 
+            Animated.parallel([
+              Animated.timing(opacity, {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+              Animated.timing(translateX, {
+                toValue: 0,
+                duration: 400,
+                easing: Easing.elastic(1.1),
+                useNativeDriver: true,
+              }),
+            ])
+          )
+        ).start();
+      }, 100);
+    });
   }, [selectedRole]);
 
   const handleRegister = async (): Promise<void> => {
     if (loading) return;
 
+    Animated.sequence([
+      Animated.timing(buttonPulseAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonPulseAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     if (!name || !rank || !identity || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    if (!validateIdentity(identity, selectedRole)) {
-      Alert.alert('Error', `Invalid identity format for ${selectedRole}`);
-      return;
-    }
-
-    if (selectedRole !== 'admin' && !validateRegtId(regtId, selectedRole)) {
-      Alert.alert('Error', `Invalid registration ID format for ${selectedRole}`);
       return;
     }
 
@@ -299,28 +400,24 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       return;
     }
 
-    if (password !== identity) {
-      Alert.alert('Error', 'Password must be the same as identity for security');
-      return;
-    }
-
     setLoading(true);
-
     try {
-      const checkFields = selectedRole === 'admin' ? [identity] : [identity, regtId];
-      const checkQuery = selectedRole === 'admin' ? 'SELECT * FROM users WHERE identity = ?' : 'SELECT * FROM users WHERE identity = ? OR regt_id = ?';
-      const existingUser = db.getAllSync(checkQuery, checkFields);
-      
-      if (existingUser.length > 0) {
-        Alert.alert('Error', selectedRole === 'admin' ? 'User already exists with this identity' : 'User already exists with this identity or registration ID');
-        setLoading(false);
-        return;
-      }
-
-      const result = db.runSync(
-        'INSERT INTO users (name, rank, regt_id, identity, password, role, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [name, rank, regtId, identity, password, selectedRole, currentUser?.id ?? 0]
+      const userId = registerUser(
+        currentUser?.id ?? 1, 
+        name,
+        rank,
+        regtId,
+        identity,
+        password,
+        selectedRole
       );
+
+      Animated.timing(successAnim, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.elastic(1.2),
+        useNativeDriver: true,
+      }).start();
 
       Alert.alert('Success', `${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} registered successfully`, [
         {
@@ -332,7 +429,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
             setIdentity('');
             setPassword('');
             setConfirmPassword('');
-            setSelectedRole('personnel');
+            setSelectedRole(UserRole.PERSONNEL);
             setPersonnelIdType('regt');
             navigation.goBack();
           }
@@ -340,398 +437,596 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       ]);
     } catch (error) {
       console.error('Error registering user:', error);
-      Alert.alert('Error', 'Failed to register user');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to register user');
     } finally {
       setLoading(false);
     }
   };
 
   const handleBackToLogin = () => {
-    Animated.timing(fadeAnim, {
+    Animated.timing(masterFadeAnim, {
       toValue: 0,
-      duration: 300,
+      duration: 500,
       useNativeDriver: true,
     }).start(() => {
       navigation.goBack();
     });
   };
 
-  const RoleChip = ({ role, isSelected, onPress }: { role: string, isSelected: boolean, onPress: () => void }) => (
-    <Chip
-      selected={isSelected}
-      onPress={onPress}
-      style={[
-        styles.roleChip,
-        isSelected && styles.selectedRoleChip
-      ]}
-      textStyle={[
-        styles.roleChipText,
-        isSelected && styles.selectedRoleChipText
-      ]}
+  const RoleChip = ({ role, isSelected, onPress, index }: { role: string, isSelected: boolean, onPress: () => void, index: number }) => (
+    <Animated.View
+      style={{
+        transform: [
+          { scale: roleChipAnims[index].scale },
+          { 
+            rotateY: roleChipAnims[index].bounce.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0deg', '360deg'],
+            })
+          }
+        ],
+        opacity: roleChipAnims[index].opacity,
+      }}
     >
-      {role.charAt(0).toUpperCase() + role.slice(1)}
-    </Chip>
+      <TouchableOpacity
+        onPress={() => {
+          Animated.sequence([
+            Animated.timing(roleChipAnims[index].bounce, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.timing(roleChipAnims[index].bounce, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+          ]).start();
+          onPress();
+        }}
+        style={[
+          styles.roleChip,
+          isSelected && styles.selectedRoleChip,
+          {
+            shadowColor: isSelected ? '#00d4ff' : '#ffffff',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: isSelected ? 0.8 : 0.3,
+            shadowRadius: isSelected ? 15 : 8,
+            elevation: isSelected ? 15 : 8,
+          }
+        ]}
+      >
+        <LinearGradient
+          colors={isSelected ? ['#00d4ff', '#0099cc', '#0066aa'] : ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
+          style={[styles.roleChipGradient, isSelected && { borderColor: '#00d4ff', borderWidth: 2 }]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Text style={[
+            styles.roleChipText,
+            isSelected && styles.selectedRoleChipText
+          ]}>
+            {role.charAt(0).toUpperCase() + role.slice(1)}
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   const inputTheme = {
     colors: {
-      primary: 'white',
-      outline: 'rgba(255,255,255,0.5)',
-      onSurfaceVariant: 'rgba(255,255,255,0.7)',
+      primary: '#00d4ff',
+      outline: '#00d4ff',
+      onSurfaceVariant: '#ffffff',
+      onSurface: '#ffffff',
+      surface: 'rgba(255,255,255,0.1)',
+      background: 'rgba(255,255,255,0.1)',
+      placeholder: 'rgba(255,255,255,0.7)',
     },
+  };
+
+  const ADMIN_PERSONNEL_RANKS = [
+    'COMDT', '2IC', 'DC', 'AC', 'SM', 'INSP', 'SI', 'SI/JE', 'ASI', 'HC', 'HC/G', 'CT', 'M/CT',
+    'HC/COOK', 'CT/COOK', 'RCT/COOK', 'HC/WC', 'CT/WC', 'RCT/WC', 'HC/WM', 'CT/WM', 'RCT/WM',
+    'HC/SK', 'CT/SK', 'RCT/SK', 'CT/BB', 'RCT/BB', 'HC/BB', 'CT(COB)', 'R/CT/COB', 'CT/TM',
+    'RCT/TM', 'RCT/CARP', 'HC/DVR', 'CT/DVR', 'SI/RM', 'ASI/RM', 'ASI/RO', 'HC/RO', 'CT/IT',
+    'CT/COMN', 'INSP/MIN', 'SI(MIN)', 'ASI/MIN', 'HC(MIN)', 'AC/MO', 'ASI/PH', 'HC/NA', 'CT/KAHAR',
+    'SI/GD', 'ASI/GD'
+  ];
+
+  const DOCTOR_RANKS = [
+    'COMDT', '2IC', 'DC', 'AC'
+  ];
+
+  const renderParticles = () => {
+    return particleAnims.map((anim, index) => (
+      <Animated.View
+        key={index}
+        style={[
+          styles.particle,
+          {
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            opacity: anim.interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [0.3, 0.8, 0.3],
+            }),
+            transform: [
+              {
+                translateY: anim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -50],
+                }),
+              },
+              {
+                scale: anim.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [0.5, 1.5, 0.5],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+    ));
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb']}
-        style={styles.gradient}
+        colors={['#1a1a2e', '#16213e', '#0f3460']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      
+      <LinearGradient
+        colors={['rgba(0,212,255,0.3)', 'rgba(138,43,226,0.3)', 'rgba(30,144,255,0.3)']}
+        style={StyleSheet.absoluteFillObject}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
+      />
+
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFillObject,
+          {
+            opacity: shimmerAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.1, 0.3],
+            }),
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['transparent', 'rgba(255,255,255,0.1)', 'transparent']}
+          style={StyleSheet.absoluteFillObject}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </Animated.View>
+
+      {renderParticles()}
+
+      <Animated.View
+        style={[
+          styles.waveContainer,
+          {
+            transform: [
+              {
+                translateX: waveAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, width],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['transparent', 'rgba(0,212,255,0.2)', 'transparent']}
+          style={styles.wave}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        />
+      </Animated.View>
+
+      <Animated.ScrollView 
+        contentContainerStyle={styles.scrollContainer} 
+        showsVerticalScrollIndicator={false}
+        style={[styles.scrollView, { opacity: masterFadeAnim }]} 
       >
         <Animated.View 
           style={[
-            styles.floatingElement,
-            styles.element1,
+            styles.content,
             {
-              transform: [{
-                translateY: floatAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -20],
-                })
-              }]
+              transform: [{ translateY: headerSlideAnim }]
             }
           ]}
-        />
-        <Animated.View 
-          style={[
-            styles.floatingElement,
-            styles.element2,
-            {
-              transform: [{
-                translateY: floatAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 15],
-                })
-              }]
-            }
-          ]}
-        />
-        <Animated.View 
-          style={[
-            styles.floatingElement,
-            styles.element3,
-            {
-              transform: [{
-                translateY: floatAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -10],
-                })
-              }]
-            }
-          ]}
-        />
-
-        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        >
           <Animated.View 
             style={[
-              styles.content,
+              styles.logoContainer,
               {
-                opacity: fadeAnim,
                 transform: [
-                  { translateY: slideAnim },
-                  { scale: scaleAnim }
-                ]
+                  { scale: logoScaleAnim },
+                  { scale: pulseAnim },
+                  {
+                    rotateY: logoRotateAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    }),
+                  },
+                ],
               }
             ]}
           >
-            <Animated.View 
-              style={[
-                styles.logoContainer,
-                {
-                  transform: [{ scale: pulseAnim }]
-                }
-              ]}
-            >
-              <View style={styles.logoCircle}>
-                <Text style={styles.logoText}>H</Text>
-              </View>
-            </Animated.View>
-
-            <View style={styles.textContainer}>
-              <Text style={styles.title}>Register New User</Text>
-              <Text style={styles.subtitle}>
-                Admin Panel - Create {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} Account
-              </Text>
+          <Animated.View
+            style={[
+              styles.logoGlow,
+              {
+                opacity: glowAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.5, 1],
+                }),
+                transform: [
+                  {
+                    scale: glowAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.3],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+            <View style={{ backgroundColor: 'black', padding: 8 }}>
+              <Image
+                source={require('../../assets/icon.png')}
+                style={{ width: 100, height: 100, backgroundColor: 'red' }}
+                resizeMode="contain"
+              />
             </View>
+          </Animated.View>
 
-            <View style={styles.roleContainer}>
-              <Text style={styles.roleLabel}>Select Role:</Text>
-              <View style={styles.roleChipsContainer}>
-                <RoleChip 
-                  role="admin" 
-                  isSelected={selectedRole === 'admin'} 
-                  onPress={() => setSelectedRole('admin')}
+          <Animated.View 
+            style={[
+              styles.textContainer,
+              {
+                opacity: breatheAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                }),
+              }
+            ]}
+          >
+            <Text style={styles.title}>Register New User</Text>
+            <Text style={styles.subtitle}>
+              Admin Panel - Create {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} Account
+            </Text>
+          </Animated.View>
+
+          <View style={styles.roleContainer}>
+            <Text style={styles.roleLabel}>Select Role:</Text>
+            <View style={styles.roleChipsContainer}>
+              {[UserRole.ADMIN, UserRole.DOCTOR, UserRole.PERSONNEL].map((role, index) => (
+                <RoleChip
+                  key={role}
+                  role={role}
+                  isSelected={selectedRole === role}
+                  onPress={() => setSelectedRole(role)}
+                  index={index}
                 />
-                <RoleChip 
-                  role="doctor" 
-                  isSelected={selectedRole === 'doctor'} 
-                  onPress={() => setSelectedRole('doctor')}
-                />
-                <RoleChip 
-                  role="personnel" 
-                  isSelected={selectedRole === 'personnel'} 
-                  onPress={() => setSelectedRole('personnel')}
-                />
-              </View>
+              ))}
             </View>
+          </View>
 
-            <View style={styles.formContainer}>
+          <View style={styles.formContainer}>
+            {[
+              { label: 'Full Name', value: name, setter: setName, icon: 'account', type: 'text' },
+              { label: 'Rank', value: rank, setter: setRank, icon: 'star', type: 'dropdown-rank' },
+              { 
+                label: (() => {
+                  const officerRanks = ['COMDT', '2IC', 'DC', 'AC'];
+                  switch (selectedRole) {
+                    case UserRole.ADMIN:
+                      return officerRanks.includes(rank) ? 'Admin IRLA Number' : 'Admin Regt. ID';
+                    case UserRole.DOCTOR:
+                      return 'IRLA Number';
+                    case UserRole.PERSONNEL:
+                      return officerRanks.includes(rank) ? 'IRLA Number' : 'Regt. ID';
+                    default:
+                      return 'Identity';
+                  }
+                })(),
+                value: identity, 
+                setter: setIdentity, 
+                icon: 'identifier', 
+                type: selectedRole === 'admin' ? 'text' : 'numeric' 
+              },
+              { label: 'Password', value: password, setter: setPassword, icon: 'lock', type: 'password' },
+              { label: 'Confirm Password', value: confirmPassword, setter: setConfirmPassword, icon: 'lock-check', type: 'password' },
+            ].map((field, index) => (
+              
               <Animated.View 
+                key={field.label}
                 style={[
                   styles.inputContainer,
                   {
-                    opacity: inputAnimations[0],
-                    transform: [{
-                      translateX: inputAnimations[0].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-50, 0],
-                      })
-                    }]
+                    opacity: inputAnimations[index] ? inputAnimations[index].opacity : 1,
+                    transform: [
+                      { translateX: inputAnimations[index] ? inputAnimations[index].translateX : 0 },
+                      { scale: inputAnimations[index] ? inputAnimations[index].scale : 1 },
+                    ],
                   }
                 ]}
               >
-                <TextInput
-                  mode="outlined"
-                  label="Full Name"
-                  value={name}
-                  onChangeText={setName}
-                  style={styles.input}
-                  theme={inputTheme}
-                  textColor="white"
-                  autoCapitalize="words"
-                  left={<TextInput.Icon icon="account" color="rgba(255,255,255,0.7)" />}
-                />
-              </Animated.View>
-
-              <Animated.View 
-                style={[
-                  styles.inputContainer,
-                  {
-                    opacity: inputAnimations[1],
-                    transform: [{
-                      translateX: inputAnimations[1].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [50, 0],
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <TextInput
-                  mode="outlined"
-                  label="Rank"
-                  value={rank}
-                  onChangeText={setRank}
-                  style={styles.input}
-                  theme={inputTheme}
-                  textColor="white"
-                  autoCapitalize="words"
-                  left={<TextInput.Icon icon="star" color="rgba(255,255,255,0.7)" />}
-                />
-              </Animated.View>
-
-              {selectedRole === 'personnel' && (
-                <Animated.View 
-                  style={[
-                    styles.inputContainer,
-                    {
-                      opacity: inputAnimations[2],
-                      transform: [{
-                        translateX: inputAnimations[2].interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-50, 0],
-                        })
-                      }]
-                    }
-                  ]}
-                >
+                {field.type === 'dropdown' || field.type === 'dropdown-rank' ? (
                   <View style={styles.dropdownContainer}>
                     <Text style={styles.dropdownLabel}>ID Type:</Text>
                     <Menu
-                      visible={menuVisible}
+                      visible={menuVisible && field.label === 'Rank'}
                       onDismiss={() => setMenuVisible(false)}
                       anchor={
                         <TouchableOpacity 
                           style={styles.dropdownButton}
                           onPress={() => setMenuVisible(true)}
                         >
-                          <Text style={styles.dropdownButtonText}>
-                            {personnelIdType === 'regt' ? 'Regt ID (Other Ranks)' : 'IRLA Number (Officers)'}
-                          </Text>
-                          <TextInput.Icon icon="chevron-down" color="rgba(255,255,255,0.7)" />
+                          <LinearGradient
+                            colors={['rgba(0,212,255,0.2)', 'rgba(255,255,255,0.1)']}
+                            style={styles.dropdownGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          >
+                            <Text style={styles.dropdownButtonText}>
+                              {rank || 'Select Rank'}
+                            </Text>
+                            <Text style={styles.chevronText}>▼</Text>
+                          </LinearGradient>
                         </TouchableOpacity>
                       }
                     >
-                      <Menu.Item 
-                        onPress={() => {
-                          setPersonnelIdType('regt');
-                          setMenuVisible(false);
-                          setIdentity('');
-                          setRegtId('');
-                        }} 
-                        title="Regt ID (Other Ranks)" 
-                      />
-                      <Menu.Item 
-                        onPress={() => {
-                          setPersonnelIdType('irla');
-                          setMenuVisible(false);
-                          setIdentity('');
-                          setRegtId('');
-                        }} 
-                        title="IRLA Number (Officers)" 
-                      />
+                      {(selectedRole === 'doctor' ? DOCTOR_RANKS : ADMIN_PERSONNEL_RANKS).map((item, idx) => (
+                        <Menu.Item 
+                          key={idx}
+                          onPress={() => {
+                            setRank(item);
+                            setMenuVisible(false);
+                          }} 
+                          title={item}
+                          titleStyle={styles.menuItemText}
+                        />
+                      ))}
                     </Menu>
                   </View>
+                ) : (
+                  <View style={styles.enhancedInputWrapper}>
+                  <LinearGradient
+                    colors={['rgba(0,212,255,0.15)', 'rgba(138,43,226,0.15)', 'rgba(30,144,255,0.15)']}
+                    style={styles.inputGradientBorder}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <TextInput
+                      label={field.label}
+                      value={field.value}
+                      onChangeText={field.setter}
+                      mode="outlined"
+                      style={styles.enhancedInput}
+                      theme={inputTheme}
+                      secureTextEntry={field.type === 'password'}
+                      keyboardType={field.type === 'numeric' ? 'numeric' : 'default'}
+                      textColor="#ffffff"
+                      placeholderTextColor="rgba(255,255,255,0.7)"
+                      activeOutlineColor="#00d4ff"
+                      outlineColor="rgba(0,212,255,0.5)"
+                      right={
+                        <TextInput.Icon 
+                          icon={field.icon} 
+                          color="rgba(0,212,255,0.8)"
+                          onPress={() => {
+                            if (inputAnimations[index]) {
+                              Animated.sequence([
+                                Animated.timing(inputAnimations[index].rotate, {
+                                  toValue: 1,
+                                  duration: 200,
+                                  useNativeDriver: true,
+                                }),
+                                Animated.timing(inputAnimations[index].rotate, {
+                                  toValue: 0,
+                                  duration: 200,
+                                  useNativeDriver: true,
+                                }),
+                              ]).start();
+                            }
+                          }}
+                        />
+                      }
+                      contentStyle={styles.inputContent}
+                      outlineStyle={styles.inputOutline}
+                      editable={true}
+                    />
+                  </LinearGradient>
+                  
+                  <Animated.View
+                    style={[
+                      styles.inputParticleContainer,
+                      {
+                        opacity: inputAnimations[index] ? inputAnimations[index].opacity.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 0.6],
+                        }) : 0.6,
+                      },
+                    ]}
+                  >
+                    {[...Array(4)].map((_, particleIndex) => (
+                      <Animated.View
+                        key={particleIndex}
+                        style={[
+                          styles.inputParticle,
+                          {
+                            left: `${25 + particleIndex * 16}%`,
+                            transform: [
+                              {
+                                translateY: inputAnimations[index] ? inputAnimations[index].opacity.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [0, -20 - particleIndex * 5],
+                                }) : 0,
+                              },
+                              {
+                                scale: inputAnimations[index] ? inputAnimations[index].opacity.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [0.5, 1.2],
+                                }) : 1,
+                              },
+                            ],
+                          },
+                        ]}
+                      />
+                    ))}
+                  </Animated.View>
+                </View>
+                )}
+              </Animated.View>
+            ))}
+          </View>
+
+          <Animated.View 
+            style={[
+              styles.buttonContainer,
+              {
+                transform: [{ scale: buttonPulseAnim }],
+                opacity: successAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0.8],
+                }),
+              }
+            ]}
+          >
+            <TouchableOpacity 
+              style={styles.submitButton}
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              <LinearGradient
+                colors={loading ? 
+                  ['rgba(0,212,255,0.5)', 'rgba(138,43,226,0.5)', 'rgba(30,144,255,0.5)'] : 
+                  ['#00d4ff', '#8a2be2', '#1e90ff']
+                }
+                style={styles.submitButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Animated.View
+                  style={[
+                    styles.submitButtonContent,
+                    {
+                      transform: [
+                        {
+                          rotateY: buttonPulseAnim.interpolate({
+                            inputRange: [0.95, 1],
+                            outputRange: ['0deg', '360deg'],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Text style={styles.submitButtonText}>
+                    {loading ? 'REGISTERING...' : 'REGISTER USER'}
+                  </Text>
+                  {!loading && (
+                    <Animated.View
+                      style={[
+                        styles.submitButtonIcon,
+                        {
+                          transform: [
+                            {
+                              translateX: pulseAnim.interpolate({
+                                inputRange: [1, 1.15],
+                                outputRange: [0, 5],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      <Text style={styles.submitButtonIconText}>→</Text>
+                    </Animated.View>
+                  )}
                 </Animated.View>
-              )}
-
-              <Animated.View 
-                style={[
-                  styles.inputContainer,
-                  {
-                    opacity: inputAnimations[3],
-                    transform: [{
-                      translateX: inputAnimations[3].interpolate({
+                
+                <Animated.View
+                  style={[
+                    styles.buttonGlow,
+                    {
+                      opacity: glowAnim.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [50, 0],
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <TextInput
-                  mode="outlined"
-                  label={getIdentityLabel(selectedRole)}
-                  value={identity}
-                  onChangeText={setIdentity}
-                  style={styles.input}
-                  theme={inputTheme}
-                  textColor="white"
-                  autoCapitalize={selectedRole === 'admin' ? 'none' : 'characters'}
-                  keyboardType={selectedRole === 'admin' ? 'default' : 'numeric'}
-                  left={<TextInput.Icon icon="identifier" color="rgba(255,255,255,0.7)" />}
+                        outputRange: [0.3, 0.8],
+                      }),
+                    },
+                  ]}
                 />
-              </Animated.View>
-
-              <Animated.View 
-                style={[
-                  styles.inputContainer,
-                  {
-                    opacity: inputAnimations[4],
-                    transform: [{
-                      translateX: inputAnimations[4].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-50, 0],
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <TextInput
-                  mode="outlined"
-                  label="Password (Auto-filled)"
-                  value={password}
-                  onChangeText={setPassword}
-                  style={styles.input}
-                  theme={inputTheme}
-                  textColor="white"
-                  secureTextEntry
-                  editable={false}
-                  left={<TextInput.Icon icon="lock" color="rgba(255,255,255,0.7)" />}
-                />
-              </Animated.View>
-
-              <Animated.View 
-                style={[
-                  styles.inputContainer,
-                  {
-                    opacity: inputAnimations[5],
-                    transform: [{
-                      translateX: inputAnimations[5].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [50, 0],
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <TextInput
-                  mode="outlined"
-                  label="Confirm Password"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  style={styles.input}
-                  theme={inputTheme}
-                  textColor="white"
-                  secureTextEntry
-                  editable={false}
-                  left={<TextInput.Icon icon="lock-check" color="rgba(255,255,255,0.7)" />}
-                />
-              </Animated.View>
-            </View>
-
-            <Card style={styles.securityCard}>
-              <Card.Content>
-                <Text style={styles.securityTitle}>Security Notice</Text>
-                <Text style={styles.securityText}>
-                  • Password is automatically set to match identity for security
-                  {'\n'}• {
-                    selectedRole === 'admin'
-                      ? 'Select appropriate rank and then enter IRLA Number or Regt ID accordingly'
-                      : selectedRole === 'doctor'
-                        ? 'Identity must be 8-10 digit IRLA Number'
-                        : 'IRLA/Regt numbers must be 8-10 digits'
-                  }
-                  {'\n'}• {
-                    selectedRole === 'admin'
-                      ? 'Admin identity must be 8-10 characters (same as Regt ID/IRLA Number)'
-                      : selectedRole === 'doctor'
-                        ? 'IRLA Number is used as identity'
-                        : 'Select appropriate ID type: Regt ID or IRLA Number'
-                  }
-                </Text>
-              </Card.Content>
-            </Card>
-
-            <View style={styles.buttonContainer}>
-              <Button
-                mode="contained"
-                onPress={handleRegister}
-                style={styles.primaryButton}
-                contentStyle={styles.buttonContent}
-                labelStyle={styles.buttonLabel}
-                loading={loading}
-                disabled={loading}
-              >
-                {loading ? 'Creating Account...' : 'Create Account'}
-              </Button>
-              
-              <Button
-                mode="outlined"
-                onPress={handleBackToLogin}
-                style={[styles.secondaryButton, { borderColor: 'rgba(255,255,255,0.3)' }]}
-                contentStyle={styles.buttonContent}
-                labelStyle={[styles.buttonLabel, { color: 'white' }]}
-                disabled={loading}
-              >
-                Back to Dashboard
-              </Button>
-            </View>
+              </LinearGradient>
+            </TouchableOpacity>
           </Animated.View>
-        </ScrollView>
-      </LinearGradient>
+
+          <Animated.View 
+            style={[
+              styles.backButtonContainer,
+              {
+                opacity: masterFadeAnim,
+                transform: [
+                  {
+                    translateY: masterFadeAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [50, 0],
+                    }),
+                  },
+                ],
+              }
+            ]}
+          >
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={handleBackToLogin}
+            >
+              <LinearGradient
+                colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
+                style={styles.backButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.backButtonText}>← Back to Login</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.successOverlay,
+              {
+                opacity: successAnim,
+                transform: [
+                  {
+                    scale: successAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.5, 1.5],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['rgba(0,255,0,0.3)', 'rgba(0,200,0,0.3)']}
+              style={styles.successGradient}
+            >
+              <Text style={styles.successText}>✓</Text>
+            </LinearGradient>
+          </Animated.View>
+        </Animated.View>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -739,190 +1034,349 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#1a1a2e',
   },
-  gradient: {
+  scrollView: {
     flex: 1,
+  },
+  chevronText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: responsive.getFontSize(12),
   },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-  },
-  floatingElement: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 50,
-  },
-  element1: {
-    width: 80,
-    height: 80,
-    top: '10%',
-    left: '10%',
-  },
-  element2: {
-    width: 60,
-    height: 60,
-    top: '20%',
-    right: '15%',
-  },
-  element3: {
-    width: 100,
-    height: 100,
-    bottom: '15%',
-    left: '5%',
-    opacity: 0.5,
+    paddingHorizontal: responsive.getSpacing(20),
+    paddingTop: Platform.OS === 'ios' ? responsive.getSpacing(60) : responsive.getSpacing(40),
+    paddingBottom: responsive.getSpacing(40),
+    minHeight: height,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 400,
+    justifyContent: 'flex-start',
+    maxWidth: responsive.getCardWidth(),
+    alignSelf: 'center',
+    width: '100%'
   },
   logoContainer: {
-    marginBottom: 20,
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  logoText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: 'white',
+    marginBottom: responsive.getSpacing(30),
+    position: 'relative',
   },
   textContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: responsive.getSpacing(40),
   },
   title: {
-    fontSize: 32,
+    fontSize: responsive.getFontSize(32),
     fontWeight: 'bold',
-    color: 'white',
+    color: '#ffffff',
     textAlign: 'center',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.3)',
+    marginBottom: responsive.getSpacing(10),
+    textShadowColor: 'rgba(0,212,255,0.5)',
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowRadius: 10,
+    letterSpacing: 1,
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: responsive.getFontSize(16),
+    color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
-    fontWeight: '600',
+    fontStyle: 'italic',
+    letterSpacing: 0.5,
   },
   roleContainer: {
     width: '100%',
-    marginBottom: 30,
+    marginBottom: responsive.getSpacing(30),
   },
   roleLabel: {
-    fontSize: 18,
-    color: 'white',
+    fontSize: responsive.getFontSize(18),
     fontWeight: 'bold',
-    marginBottom: 10,
+    color: '#ffffff',
     textAlign: 'center',
+    marginBottom: responsive.getSpacing(15),
+    textShadowColor: 'rgba(0,212,255,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   roleChipsContainer: {
-    flexDirection: 'row',
+    flexDirection: isSmallScreen ? 'column' : 'row',
     justifyContent: 'space-around',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: responsive.getSpacing(10),
   },
   roleChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    margin: 5,
+    borderRadius: responsive.getSize(25),
+    overflow: 'hidden',
+    margin: responsive.getSpacing(5),
+    minWidth: isSmallScreen ? width * 0.6 : 'auto',
   },
-  selectedRoleChip: {
-    backgroundColor: 'white',
+  roleChipGradient: {
+    paddingHorizontal: responsive.getSpacing(20),
+    paddingVertical: responsive.getSpacing(12),
+    borderRadius: responsive.getSize(25),
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   roleChipText: {
-    color: 'white',
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: responsive.getFontSize(14),
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  selectedRoleChip: {
+    transform: [{ scale: 1.1 }],
   },
   selectedRoleChipText: {
-    color: '#667eea',
+    color: '#ffffff',
     fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   formContainer: {
     width: '100%',
-    marginBottom: 20,
+    maxWidth: responsive.getCardWidth(),
+    paddingHorizontal: responsive.getSpacing(10),
   },
   inputContainer: {
-    marginBottom: 15,
+    marginBottom: responsive.getSpacing(20),
+    position: 'relative',
   },
-  input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
+  enhancedInputWrapper: {
+    position: 'relative',
+  },
+  inputGradientBorder: {
+    borderRadius: responsive.getSize(12),
+    padding: 2,
+    shadowColor: '#00d4ff',
+    shadowOffset: { width: 0, height: responsive.getSize(5) },
+    shadowOpacity: 0.3,
+    shadowRadius: responsive.getSize(10),
+    elevation: 8,
+  },
+  enhancedInput: {
+    backgroundColor: 'rgba(26,26,46,0.95)',
+    borderRadius: responsive.getSize(10),
+    fontSize: responsive.getFontSize(16),
+    color: '#ffffff',
+  },
+  inputContent: {
+    color: '#ffffff',
+    fontSize: responsive.getFontSize(16),
+    fontWeight: '500',
+  },
+  inputOutline: {
+    borderColor: '#00d4ff',
+    borderWidth: 2,
+  },
+  inputParticleContainer: {
+    position: 'absolute',
+    top: -responsive.getSize(10),
+    left: 0,
+    right: 0,
+    height: responsive.getSize(20),
+    pointerEvents: 'none',
+  },
+  inputParticle: {
+    position: 'absolute',
+    width: responsive.getSize(4),
+    height: responsive.getSize(4),
+    borderRadius: responsive.getSize(2),
+    backgroundColor: '#00d4ff',
+    shadowColor: '#00d4ff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: responsive.getSize(5),
+    elevation: 5,
   },
   dropdownContainer: {
-    marginBottom: 10,
+    width: '100%',
   },
   dropdownLabel: {
-    fontSize: 16,
-    color: 'white',
-    fontWeight: 'bold',
-    marginBottom: 8,
+    fontSize: responsive.getFontSize(16),
+    color: '#ffffff',
+    marginBottom: responsive.getSpacing(10),
+    fontWeight: '600',
   },
   dropdownButton: {
+    borderRadius: responsive.getSize(12),
+    overflow: 'hidden',
+    shadowColor: '#00d4ff',
+    shadowOffset: { width: 0, height: responsive.getSize(5) },
+    shadowOpacity: 0.3,
+    shadowRadius: responsive.getSize(10),
+    elevation: 8,
+  },
+  dropdownGradient: {
+    paddingHorizontal: responsive.getSpacing(20),
+    paddingVertical: responsive.getSpacing(15),
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    padding: 15,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   dropdownButtonText: {
-    color: 'white',
-    fontSize: 16,
-    flex: 1,
+    color: '#ffffff',
+    fontSize: responsive.getFontSize(16),
+    fontWeight: '600',
   },
-  securityCard: {
-    width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: 20,
-  },
-  securityTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 8,
-  },
-  securityText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 20,
+  menuItemText: {
+    color: '#1a1a2e',
+    fontSize: responsive.getFontSize(16),
   },
   buttonContainer: {
     width: '100%',
-    gap: 15,
+    marginTop: responsive.getSpacing(30),
+    marginBottom: responsive.getSpacing(20),
   },
-  primaryButton: {
-    backgroundColor: 'white',
-    borderRadius: 25,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+  submitButton: {
+    borderRadius: responsive.getSize(30),
+    overflow: 'hidden',
+    shadowColor: '#00d4ff',
+    shadowOffset: { width: 0, height: responsive.getSize(10) },
+    shadowOpacity: 0.8,
+    shadowRadius: responsive.getSize(20),
+    elevation: 15,
   },
-  secondaryButton: {
-    borderRadius: 25,
-    borderWidth: 2,
+  submitButtonGradient: {
+    paddingVertical: responsive.getSpacing(18),
+    paddingHorizontal: responsive.getSpacing(40),
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  buttonContent: {
-    height: 50,
+  submitButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonLabel: {
-    fontSize: 16,
+  submitButtonText: {
+    color: '#ffffff',
+    fontSize: responsive.getFontSize(18),
     fontWeight: 'bold',
-    color: '#667eea',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+    letterSpacing: 1,
+  },
+  submitButtonIcon: {
+    marginLeft: responsive.getSpacing(10),
+  },
+  submitButtonIconText: {
+    color: '#ffffff',
+    fontSize: responsive.getFontSize(20),
+    fontWeight: 'bold',
+  },
+  buttonGlow: {
+    position: 'absolute',
+    top: -responsive.getSize(5),
+    left: -responsive.getSize(5),
+    right: -responsive.getSize(5),
+    bottom: -responsive.getSize(5),
+    borderRadius: responsive.getSize(35),
+    backgroundColor: 'rgba(0,212,255,0.3)',
+    shadowColor: '#00d4ff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: responsive.getSize(25),
+    elevation: 20,
+  },
+  backButtonContainer: {
+    width: '100%',
+    marginTop: responsive.getSpacing(20),
+  },
+  backButton: {
+    borderRadius: responsive.getSize(25),
+    overflow: 'hidden',
+    shadowColor: 'rgba(255,255,255,0.3)',
+    shadowOffset: { width: 0, height: responsive.getSize(5) },
+    shadowOpacity: 0.5,
+    shadowRadius: responsive.getSize(10),
+    elevation: 8,
+  },
+  backButtonGradient: {
+    paddingVertical: responsive.getSpacing(12),
+    paddingHorizontal: responsive.getSpacing(30),
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  backButtonText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: responsive.getFontSize(16),
+    fontWeight: '600',
+  },
+  successOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: responsive.getSize(100),
+    height: responsive.getSize(100),
+    marginLeft: -responsive.getSize(50),
+    marginTop: -responsive.getSize(50),
+    borderRadius: responsive.getSize(50),
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+  },
+  successGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: responsive.getSize(50),
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00ff00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: responsive.getSize(20),
+    elevation: 20,
+  },
+  successText: {
+    color: '#ffffff',
+    fontSize: responsive.getFontSize(36),
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 5,
+  },
+  particle: {
+    position: 'absolute',
+    width: responsive.getSize(3),
+    height: responsive.getSize(3),
+    borderRadius: responsive.getSize(1.5),
+    backgroundColor: '#00d4ff',
+    shadowColor: '#00d4ff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: responsive.getSize(3),
+    elevation: 5,
+  },
+  waveContainer: {
+    position: 'absolute',
+    top: 0,
+    left: -width,
+    right: 0,
+    height: '100%',
+    pointerEvents: 'none',
+  },
+  wave: {
+    width: width * 2,
+    height: '100%',
+    opacity: 0.3,
+  },
+  logoGlow: {
+    position: 'absolute',
+    width: responsive.getSize(120),
+    height: responsive.getSize(120),
+    borderRadius: responsive.getSize(12), 
+    backgroundColor: 'rgba(0,212,255,0.3)',
+    shadowColor: '#00d4ff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: responsive.getSize(30),
+    elevation: 20,
   },
 });

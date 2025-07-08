@@ -16,10 +16,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import XLSX from 'xlsx';
-import { insertAMERecord, getAMERecords, createAMETable } from '../utils/sqlite';
+import { insertAMERecord, getAMERecords, createAMETable, deleteAMERecords } from '../utils/sqlite';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { deleteAMERecords } from '../utils/sqlite';
 
 export default function AMEStatus() {
   const [loading, setLoading] = useState(false);
