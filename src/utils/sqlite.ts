@@ -35,18 +35,22 @@ export enum UserRole {
   PERSONNEL = 'personnel'
 }
 
-export interface User {
-  id: number;
+interface User {
+  id: string;
+  identity: string;
   full_name: string;
   rank: string;
+  unit: string;
+  age: string;
+  height: string;
+  weight: string;
   regt_id_irla_no: string;
-  identity: string;
   password: string;
-  role: UserRole;
+  role: string;
   created_at: string;
 }
 
-const db = SQLite.openDatabaseSync('healthSync.db');
+const db = SQLite.openDatabaseSync('medical_records.db');
 
 export const initDatabase = (): void => {
   try {
@@ -75,7 +79,7 @@ export const initDatabase = (): void => {
         FOREIGN KEY (created_by) REFERENCES users(id)
       )`
     );
-
+    createDefaultAdmin();
     createAMETable();
     
   } catch (error) {
@@ -192,58 +196,92 @@ export const getUserByIdentity = (identity: string, role?: UserRole): User | nul
   }
 };
 
-export const getAllUsers = (adminId: number): User[] => {
+export const createDefaultAdmin = () => {
   try {
-    const admin = db.getFirstSync('SELECT * FROM users WHERE id = ? AND role = ?', [adminId, 'admin']);
-    if (!admin) {
-      throw new Error('Only admin can view all users');
-    }
+    const existing = db.getFirstSync(
+      'SELECT * FROM users WHERE identity = ? AND role = ?',
+      ['admin001', 'admin']
+    );
 
-    return db.getAllSync('SELECT * FROM users ORDER BY created_at DESC') as User[];
+    if (!existing) {
+      db.runSync(
+        `INSERT INTO users (
+          full_name,
+          rank,
+          regt_id_irla_no,
+          identity,
+          password,
+          role,
+          created_at,
+          created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), NULL)`,
+        [
+          'Default Admin',
+          'COMDT',
+          'IRLA001',
+          'admin001',
+          'admin123',
+          'admin'
+        ]
+      );
+    } else {
+    }
   } catch (error) {
-    console.error('Error getting all users:', error);
-    throw error;
+    console.error('❌ Error creating default admin:', error);
   }
+};
+
+export const getUserCount = (): number => {
+  try {
+    const result = db.getFirstSync('SELECT COUNT(*) as count FROM users') as { count: number };
+    return result.count;
+  } catch (error) {
+    console.error('Error getting user count:', error);
+    return 0;
+  }
+};
+
+export const getAllUsers = (): Promise<User[]> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const users = db.getAllSync('SELECT * FROM users ORDER BY created_at DESC') as User[];
+      resolve(users);
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      reject(error);
+    }
+  });
 };
 
 export const updateUser = (
-  adminId: number,
   userId: number,
   updates: Partial<Omit<User, 'id' | 'created_at'>>
-): void => {
-  try {
-    const admin = db.getFirstSync('SELECT * FROM users WHERE id = ? AND role = ?', [adminId, 'admin']);
-    if (!admin) {
-      throw new Error('Only admin can update users');
-    }
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const fields = Object.keys(updates);
+      const values = Object.values(updates);
+      const setClause = fields.map(field => `${field} = ?`).join(', ');
 
-    const fields = Object.keys(updates);
-    const values = Object.values(updates);
-    const setClause = fields.map(field => `${field} = ?`).join(', ');
-    
-    db.runSync(`UPDATE users SET ${setClause} WHERE id = ?`, [...values, userId]);
-  } catch (error) {
-    console.error('Error updating user:', error);
-    throw error;
-  }
+      db.runSync(`UPDATE users SET ${setClause} WHERE id = ?`, [...values, userId]);
+      resolve();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      reject(error);
+    }
+  });
 };
 
-export const deleteUser = (adminId: number, userId: number): void => {
-  try {
-    const admin = db.getFirstSync('SELECT * FROM users WHERE id = ? AND role = ?', [adminId, 'admin']);
-    if (!admin) {
-      throw new Error('Only admin can delete users');
+export const deleteUser = (userId: number): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    try {
+      db.runSync('DELETE FROM users WHERE id = ?', [userId]);
+      resolve();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      reject(error);
     }
-
-    if (adminId === userId) {
-      throw new Error('Admin cannot delete their own account');
-    }
-
-    db.runSync('DELETE FROM users WHERE id = ?', [userId]);
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    throw error;
-  }
+  });
 };
 
 export const insertRecord = (tableName: string, data: Record<string, any>): number => {
@@ -261,7 +299,7 @@ export const insertRecord = (tableName: string, data: Record<string, any>): numb
   }
 };
 
-export interface AMERecord {
+interface AMERecord {
   id?: number;
   s_no: number;
   personnel_id: string;           
@@ -323,31 +361,43 @@ export const createAMETable = (): void => {
   }
 };
 
-const sanitizeValue = (value: any): string | number => {
-  if (value === undefined || value === null || value === '' || value === 0) {
-    return '-';
+const sanitizeValue = (value: any): string => {
+  if (value === null || value === undefined) {
+    return '';
   }
-  return value;
+  return String(value);
 };
 
 const sanitizeDateValue = (value: any): string => {
-  if (value === undefined || value === null || value === '') {
-    return new Date().toISOString().split('T')[0];
+  if (value === null || value === undefined || value === '') {
+    return '';
   }
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
+  
+  if (typeof value === 'string') {
+    return value.trim();
   }
+  
   if (value instanceof Date) {
     return value.toISOString().split('T')[0];
   }
+  
+  if (typeof value === 'number') {
+    const excelDate = new Date((value - 25569) * 86400 * 1000);
+    return excelDate.toISOString().split('T')[0];
+  }
+  
+  return String(value);
+};
+
+export const updateAMERemarks = (recordId: string, remarks: string): void => {
   try {
-    const date = new Date(value);
-    if (isNaN(date.getTime())) {
-      return new Date().toISOString().split('T')[0];
-    }
-    return date.toISOString().split('T')[0];
-  } catch {
-    return new Date().toISOString().split('T')[0];
+    db.runSync(
+      'UPDATE ame_records SET remarks = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [sanitizeValue(remarks), recordId]
+    );
+  } catch (error) {
+    console.error('Error updating AME remarks:', error);
+    throw error;
   }
 };
 
@@ -379,7 +429,7 @@ export const insertAMERecord = (
         sanitizeValue(record.blood_pressure),
         sanitizeValue(record.vision),
         sanitizeValue(record.previous_medical_category),
-        sanitizeDateValue(record.date_of_ame),
+        sanitizeValue(record.date_of_ame),
         sanitizeValue(record.present_category_awarded),
         sanitizeValue(record.category_reason),
         sanitizeValue(record.remarks)
@@ -392,13 +442,16 @@ export const insertAMERecord = (
   }
 };
 
-export const getAMERecords = (): AMERecord[] => {
-  try {
-    return db.getAllSync('SELECT * FROM ame_records ORDER BY created_at DESC') as AMERecord[];
-  } catch (error) {
-    console.error('Error getting AME records:', error);
-    throw error;
-  }
+export const getAMERecords = (): Promise<AMERecord[]> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const records = db.getAllSync('SELECT * FROM ame_records ORDER BY created_at DESC') as AMERecord[];
+      resolve(records);
+    } catch (error) {
+      console.error('Error getting AME records:', error);
+      reject(error);
+    }
+  });
 };
 
 export const getAMERecordByPersonnelId = (personnelId: string): AMERecord | null => {
@@ -530,7 +583,7 @@ export const searchAMERecords = (searchTerm: string): AMERecord[] => {
   }
 };
 
-export const bulkDeleteAMERecords = (ids: number[]): void => {
+export const deleteAMERecord = (ids: number[]): void => {
   try {
     const placeholders = ids.map(() => '?').join(', ');
     db.runSync(`DELETE FROM ame_records WHERE id IN (${placeholders})`, ids);
@@ -549,7 +602,263 @@ export const clearAllAMERecords = (): void => {
   }
 };
 
-export interface LowMedicalRecord {
+interface Medication {
+  id: number;
+  name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  instructions: string;
+}
+
+interface PrescriptionData {
+  diagnosis: string;
+  symptoms: string;
+  medications: Medication[];
+  instructions: string;
+  followUpDate: string;
+  prescriptionDate: string;
+}
+
+interface PrescriptionHistory {
+  id: string;
+  diagnosis: string;
+  prescription_date: string;
+  medications: string;
+  follow_up_date: string;
+  status: string;
+  doctor_name: string;
+  patient_name?: string;
+  personnel_id?: string;
+  instructions?: string;
+  rank?: string;
+  unit?: string;
+}
+
+interface PrescriptionSubmissionData {
+  patient: {
+    personnel_id: string;
+    full_name: string;
+    rank: string;
+    unit: string;
+    age: number;
+    blood_group: string;
+    present_category_awarded: string;
+  };
+  diagnosis: string;
+  symptoms: string;
+  medications: Medication[];
+  instructions: string;
+  followUpDate: string | null;
+  prescriptionDate: string;
+  doctorId: string;
+  doctorName: string;
+}
+
+export const createPrescriptionTables = async () => {
+  try {
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS prescription (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prescription_number TEXT UNIQUE,
+        patient_id TEXT,
+        patient_name TEXT,
+        patient_rank TEXT,
+        patient_unit TEXT,
+        patient_age INTEGER,
+        patient_blood_group TEXT,
+        patient_category TEXT,
+        diagnosis TEXT,
+        symptoms TEXT,
+        medications TEXT,
+        instructions TEXT,
+        follow_up_date TEXT,
+        prescription_date TEXT,
+        doctor_id TEXT,
+        doctor_name TEXT,
+        status TEXT DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS prescription_medications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prescription_id INTEGER,
+        medication_name TEXT,
+        dosage TEXT,
+        frequency TEXT,
+        duration TEXT,
+        instructions TEXT,
+        FOREIGN KEY (prescription_id) REFERENCES prescription (id) ON DELETE CASCADE
+      )
+    `);
+    
+  } catch (error) {
+    console.error('Error initializing database:', error);
+    throw new Error('Failed to initialize database');
+  }
+};
+
+export const insertPrescription = async (prescriptionData: PrescriptionSubmissionData) => {
+  try {
+    const prescriptionNumber = `RX-${Date.now()}`;
+    
+    const result = db.runSync(`
+      INSERT INTO prescription (
+        prescription_number, patient_id, patient_name, patient_rank, patient_unit,
+        patient_age, patient_blood_group, patient_category, diagnosis, symptoms,
+        medications, instructions, follow_up_date, prescription_date, doctor_id, doctor_name, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      prescriptionNumber,
+      prescriptionData.patient.personnel_id,
+      prescriptionData.patient.full_name,
+      prescriptionData.patient.rank,
+      prescriptionData.patient.unit,
+      prescriptionData.patient.age,
+      prescriptionData.patient.blood_group,
+      prescriptionData.patient.present_category_awarded,
+      prescriptionData.diagnosis,
+      prescriptionData.symptoms,
+      JSON.stringify(prescriptionData.medications),
+      prescriptionData.instructions,
+      prescriptionData.followUpDate,
+      prescriptionData.prescriptionDate,
+      prescriptionData.doctorId,
+      prescriptionData.doctorName, 
+      'active'
+    ]);
+
+    const prescriptionId = result.lastInsertRowId;
+
+    for (const medication of prescriptionData.medications) {
+      db.runSync(`
+        INSERT INTO prescription_medications (
+          prescription_id, medication_name, dosage, frequency, duration, instructions
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        prescriptionId,
+        medication.name,
+        medication.dosage,
+        medication.frequency,
+        medication.duration,
+        medication.instructions
+      ]);
+    }
+
+    return {
+      id: prescriptionId,
+      prescriptionNumber,
+      ...prescriptionData,
+      createdAt: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error saving prescription:', error);
+    throw error;
+  }
+};
+
+export const getAllPrescriptions = async () => {
+  try {
+    const query = `SELECT * FROM prescription ORDER BY created_at DESC`;
+    return db.getAllSync(query);
+  } catch (error) {
+    console.error('Error fetching all prescriptions:', error);
+    throw error;
+  }
+};
+
+export const getPrescriptionById = async (prescriptionId: string) => {
+  try {
+    const query = `SELECT * FROM prescription WHERE id = ?`;
+    const result = db.getAllSync(query, [prescriptionId]);
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error('Error fetching prescription by ID:', error);
+    throw error;
+  }
+};
+
+export const deletePrescription = async (prescriptionId: string) => {
+  try {
+    const query = `DELETE FROM prescription WHERE id = ?`;
+    return db.runSync(query, [prescriptionId]);
+  } catch (error) {
+    console.error('Error deleting prescription:', error);
+    throw error;
+  }
+};
+
+export const getPrescriptionsByDateRange = async (startDate: string, endDate: string) => {
+  try {
+    const query = `SELECT * FROM prescription WHERE prescription_date BETWEEN ? AND ?`;
+    return db.getAllSync(query, [startDate, endDate]);
+  } catch (error) {
+    console.error('Error fetching prescriptions by date range:', error);
+    throw error;
+  }
+};
+
+export const getPrescriptionsByStatus = async (status: string) => {
+  try {
+    const query = `SELECT * FROM prescription WHERE status = ?`;
+    return db.getAllSync(query, [status]);
+  } catch (error) {
+    console.error('Error fetching prescriptions by status:', error);
+    throw error;
+  }
+};
+
+export const searchPrescriptions = async (searchTerm: string) => {
+  try {
+    const query = `
+      SELECT * FROM prescription 
+      WHERE patient_name LIKE ? OR diagnosis LIKE ? OR prescription_number LIKE ?
+    `;
+    const searchPattern = `%${searchTerm}%`;
+    return db.getAllSync(query, [searchPattern, searchPattern, searchPattern]);
+  } catch (error) {
+    console.error('Error searching prescriptions:', error);
+    throw error;
+  }
+};
+
+export const getPrescriptionsByPatient = async (patientId: string): Promise<PrescriptionHistory[]> => {
+  try {
+    const query = `SELECT * FROM prescription WHERE patient_id = ? ORDER BY created_at DESC`;
+    const prescriptions = db.getAllSync(query, [patientId]);
+    
+    return prescriptions.map((prescription: any) => ({
+      id: prescription.id.toString(),
+      diagnosis: prescription.diagnosis,
+      prescription_date: prescription.prescription_date,
+      medications: prescription.medications,
+      follow_up_date: prescription.follow_up_date,
+      status: prescription.status,
+      doctor_name: prescription.doctor_name
+    }));
+  } catch (error) {
+    console.error('Error fetching prescriptions by patient:', error);
+    throw error;
+  }
+};
+
+export const updatePrescriptionStatus = async (prescriptionId: string, status: string) => {
+  try {
+    db.runSync(`
+      UPDATE prescription 
+      SET status = ? 
+      WHERE id = ?
+    `, [status, prescriptionId]);
+    
+  } catch (error) {
+    console.error('Error updating prescription status:', error);
+    throw error;
+  }
+};
+  
+interface LowMedicalRecord {
   id?: number;
   serial_no: number;
   personnel_id: string;           
@@ -566,6 +875,88 @@ export interface LowMedicalRecord {
   updated_at?: string;
 }
 
+export const parseCategoryAllotmentDates = (dateString: string): string[] => {
+  if (!dateString || dateString === 'null' || dateString === 'undefined' || 
+      dateString.trim() === '' || dateString === '[]') {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(dateString);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(date => date && date.toString().trim().length > 0);
+    } else if (typeof parsed === 'string') {
+      return [parsed];
+    }
+  } catch {
+    const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
+    const foundDates = dateString.match(datePattern);
+    
+    if (foundDates && foundDates.length > 0) {
+      return [...new Set(foundDates)];
+    }
+    
+    const splitDates = dateString.split(/[\s,;|\n&]+/)
+      .map(date => date.trim())
+      .filter(date => date && date.length > 5);
+    
+    if (splitDates.length > 0) {
+      return [...new Set(splitDates)];
+    }
+    
+    return [dateString.trim()];
+  }
+  
+  return [];
+};
+
+export const formatCategoryAllotmentDates = (dates: string | string[]): string => {
+  if (!dates) return '[]';
+  
+  if (typeof dates === 'string') {
+    try {
+      const parsed = JSON.parse(dates);
+      if (Array.isArray(parsed)) {
+        const cleanDates = parsed.filter(date => date && date.toString().trim().length > 0);
+        return JSON.stringify([...new Set(cleanDates)]); 
+      }
+      return JSON.stringify([dates]);
+    } catch {
+      if (dates.trim() === '' || dates.trim() === 'null' || dates.trim() === 'undefined') {
+        return '[]';
+      }
+      
+      const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
+      const foundDates = dates.match(datePattern);
+      
+      if (foundDates && foundDates.length > 0) {
+        return JSON.stringify([...new Set(foundDates)]);
+      }
+      
+      const splitDates = dates.split(/[\s,;|\n&]+/)
+        .map(date => date.trim())
+        .filter(date => date && date.length > 5);
+      
+      if (splitDates.length > 0) {
+        return JSON.stringify([...new Set(splitDates)]);
+      }
+      
+      return JSON.stringify([dates.trim()]);
+    }
+  }
+  
+  if (Array.isArray(dates)) {
+    const cleanDates = dates
+      .filter(date => date && date.toString().trim().length > 0)
+      .map(date => date.toString().trim())
+      .filter(date => date !== 'undefined' && date !== 'null' && date !== '');
+    
+    return JSON.stringify([...new Set(cleanDates)]); 
+  }
+  
+  return '[]';
+};
+
 export const createLowMedicalTable = (): void => {
   try {
     db.execSync(
@@ -577,7 +968,7 @@ export const createLowMedicalTable = (): void => {
         name TEXT NOT NULL,
         disease_reason TEXT DEFAULT '-',
         medical_category TEXT DEFAULT '-',
-        category_allotment_date TEXT DEFAULT '-',
+        category_allotment_date TEXT DEFAULT '[]',  -- Changed default to empty JSON array
         last_medical_board_date TEXT DEFAULT '-',
         medical_board_due_date TEXT DEFAULT '-',
         remarks TEXT DEFAULT '-',
@@ -596,6 +987,11 @@ export const insertLowMedicalRecord = (
   record: Omit<LowMedicalRecord, 'id' | 'created_at' | 'updated_at'>
 ): number => {
   try {
+    const formattedRecord = {
+      ...record,
+      category_allotment_date: formatCategoryAllotmentDates(record.category_allotment_date)
+    };
+    
     const result = db.runSync(
       `INSERT INTO low_medical_records (
         serial_no, personnel_id, rank, name, disease_reason,
@@ -603,17 +999,17 @@ export const insertLowMedicalRecord = (
         medical_board_due_date, remarks, status
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        record.serial_no,
-        record.personnel_id,
-        sanitizeValue(record.rank),
-        record.name,
-        sanitizeValue(record.disease_reason),
-        sanitizeValue(record.medical_category),
-        sanitizeValue(record.category_allotment_date),
-        sanitizeValue(record.last_medical_board_date),
-        sanitizeValue(record.medical_board_due_date),
-        sanitizeValue(record.remarks),
-        record.status || 'active'
+        formattedRecord.serial_no,
+        formattedRecord.personnel_id,
+        sanitizeValue(formattedRecord.rank),
+        formattedRecord.name,
+        sanitizeValue(formattedRecord.disease_reason),
+        sanitizeValue(formattedRecord.medical_category),
+        formattedRecord.category_allotment_date,
+        sanitizeValue(formattedRecord.last_medical_board_date),
+        sanitizeValue(formattedRecord.medical_board_due_date),
+        sanitizeValue(formattedRecord.remarks),
+        formattedRecord.status || 'active'
       ]
     );
     return result.lastInsertRowId;
@@ -623,13 +1019,16 @@ export const insertLowMedicalRecord = (
   }
 };
 
-export const getLowMedicalRecords = (): LowMedicalRecord[] => {
-  try {
-    return db.getAllSync('SELECT * FROM low_medical_records ORDER BY created_at DESC') as LowMedicalRecord[];
-  } catch (error) {
-    console.error('Error getting Low Medical Category records:', error);
-    throw error;
-  }
+export const getLowMedicalRecords = (): Promise<LowMedicalRecord[]> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const records = db.getAllSync('SELECT * FROM low_medical_records ORDER BY created_at DESC') as LowMedicalRecord[];
+      resolve(records);
+    } catch (error) {
+      console.error('Error getting low medical records:', error);
+      reject(error);
+    }
+  });
 };
 
 export const getLowMedicalRecordByPersonnelId = (personnelId: string): LowMedicalRecord | null => {
@@ -775,4 +1174,14 @@ export const clearAllLowMedicalRecords = (): void => {
     console.error('Error clearing all Low Medical Category records:', error);
     throw error;
   }
+};
+
+export type {
+  User,
+  AMERecord,
+  LowMedicalRecord,
+  Medication,
+  PrescriptionData,
+  PrescriptionHistory,
+  PrescriptionSubmissionData
 };

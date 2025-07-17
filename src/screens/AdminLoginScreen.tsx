@@ -183,7 +183,7 @@ export default function LoginAdmin({ navigation }: any) {
           {
             text: 'OK',
             onPress: () => {
-              navigation.navigate('Dashboard', { user });
+              navigation.navigate('DashboardAdmin', { user });
             }
           }
         ]);
@@ -386,148 +386,150 @@ export default function LoginAdmin({ navigation }: any) {
                 tint="light"
                 style={styles.glassCard}
               >
-                <View style={styles.cardOverlay}>
-                  <Animated.View
-                    style={[
-                      styles.shimmer,
-                      {
-                        transform: [{ translateX: shimmerTranslate }]
-                      }
-                    ]}
-                  />
-                  
-                  <View style={styles.header}>
+                <View style={styles.cardShadowWrapper}>
+                  <View style={styles.cardOverlay}>
                     <Animated.View
                       style={[
-                        styles.iconContainer,
-                        { transform: [{ scale: pulseAnim }] }
-                      ]}
-                    >
-                      <LinearGradient
-                        colors={['#C41E3A', '#8B0000']}
-                        style={styles.iconGradient}
-                      >
-                        <Ionicons
-                          name="shield-checkmark"
-                          size={responsive.getIconSize(40)}
-                          color="white"
-                        />
-                      </LinearGradient>
-                    </Animated.View>
-                    <Text style={styles.welcomeText}>Admin Portal</Text>
-                    <Text style={styles.subtitleText}>Secure access to the dashboard</Text>
-                  </View>
-
-                  <View style={styles.formSection}>
-                    <View style={styles.inputContainer}>
-                      <TextInput
-                        label="Admin Identity"
-                        mode="outlined"
-                        value={identity}
-                        onChangeText={setIdentity}
-                        style={[styles.input, {
-                          fontWeight: '700',
-                          fontSize: responsive.getFontSize(16)
-                        }]}
-                        autoCapitalize="none"
-                        disabled={loading}
-                        left={<TextInput.Icon icon="account" />}
-                        dense={Platform.OS === 'android'}
-                        contentStyle={Platform.OS === 'android' ? { paddingVertical: 8 } : {}}
-                        theme={{
-                          colors: {
-                            primary: '#C41E3A',
-                            background: 'rgba(255, 255, 255, 0.9)',
-                            outline: 'rgba(102, 126, 234, 0.3)',
-                            onSurfaceVariant: '#000000',
-                            onSurface: '#000000',
-                          }
-                        }}
-                      />
-                    </View>
-                    
-                    <View style={styles.inputContainer}>
-                      <TextInput
-                        label="Password"
-                        mode="outlined"
-                        secureTextEntry={!showPassword}
-                        value={password}
-                        onChangeText={setPassword}
-                        style={[styles.input, {
-                          fontWeight: '700',
-                          fontSize: responsive.getFontSize(16)
-                        }]}
-                        disabled={loading}
-                        left={<TextInput.Icon icon="lock" />}
-                        dense={Platform.OS === 'android'}
-                        contentStyle={Platform.OS === 'android' ? { paddingVertical: 8 } : {}}
-                        right={
-                          <TextInput.Icon 
-                            icon={showPassword ? "eye-off" : "eye"} 
-                            onPress={() => setShowPassword(!showPassword)}
-                          />
+                        styles.shimmer,
+                        {
+                          transform: [{ translateX: shimmerTranslate }]
                         }
-                        theme={{
-                          colors: {
-                            primary: '#C41E3A',
-                            background: 'rgba(255, 255, 255, 0.9)',
-                            outline: 'rgba(102, 126, 234, 0.3)',
-                            onSurfaceVariant: '#000000',
-                            onSurface: '#000000',
-                          }
-                        }}
-                      />
-                    </View>
+                      ]}
+                    />
                     
-                    <View style={styles.buttonContainer}>
-                      <LinearGradient
-                        colors={['#8B0000', '#C41E3A', '#FFD700']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.gradientWrapper}
+                    <View style={styles.header}>
+                      <Animated.View
+                        style={[
+                          styles.iconContainer,
+                          { transform: [{ scale: pulseAnim }] }
+                        ]}
                       >
-                        <Button
-                          mode="contained"
-                          onPress={handleLogin}
-                          disabled={loading}
-                          contentStyle={styles.loginButtonContent}
-                          labelStyle={styles.loginButtonText}
-                          style={[styles.loginButton, { backgroundColor: 'transparent' }]}
-                          rippleColor="rgba(255, 255, 255, 0.3)"
+                        <LinearGradient
+                          colors={['#C41E3A', '#8B0000']}
+                          style={styles.iconGradient}
                         >
-                          {loading ? (
-                            <View style={styles.loadingContainer}>
-                              <ActivityIndicator color="#fff" size="small" />
-                              <Text style={styles.loadingText}>Logging in...</Text>
-                            </View>
-                          ) : (
-                            <View style={styles.buttonTextContainer}>
-                              <Text style={styles.loginButtonText}>Login</Text>
-                              <Ionicons
-                                name="arrow-forward"
-                                size={responsive.getIconSize(20)}
-                                color="#fff"
-                              />
-                            </View>
-                          )}
-                        </Button>
-                      </LinearGradient>
+                          <Ionicons
+                            name="shield-checkmark"
+                            size={responsive.getIconSize(40)}
+                            color="white"
+                          />
+                        </LinearGradient>
+                      </Animated.View>
+                      <Text style={styles.welcomeText}>Admin Portal</Text>
+                      <Text style={styles.subtitleText}>Secure access to the dashboard</Text>
                     </View>
-                    
-                    <TouchableOpacity 
-                      onPress={() => navigation.navigate('Register')}
-                      disabled={loading}
-                      style={styles.registerWrapper}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.registerText}>
-                        Need to create accounts? <Text style={styles.registerLink}>Register Users</Text>
-                      </Text>
-                    </TouchableOpacity>
 
-                    <Button mode="outlined" onPress={debugPrintTables} style={{ marginTop: 20 }}>
-                      Debug DB
-                    </Button>
+                    <View style={styles.formSection}>
+                      <View style={styles.inputContainer}>
+                        <TextInput
+                          label="Admin Identity"
+                          mode="outlined"
+                          value={identity}
+                          onChangeText={setIdentity}
+                          style={[styles.input, {
+                            fontWeight: '700',
+                            fontSize: responsive.getFontSize(16)
+                          }]}
+                          autoCapitalize="none"
+                          disabled={loading}
+                          left={<TextInput.Icon icon="account" />}
+                          dense={Platform.OS === 'android'}
+                          contentStyle={Platform.OS === 'android' ? { paddingVertical: 8 } : {}}
+                          theme={{
+                            colors: {
+                              primary: '#C41E3A',
+                              background: 'rgba(255, 255, 255, 0.9)',
+                              outline: 'rgba(102, 126, 234, 0.3)',
+                              onSurfaceVariant: '#000000',
+                              onSurface: '#000000',
+                            }
+                          }}
+                        />
+                      </View>
+                      
+                      <View style={styles.inputContainer}>
+                        <TextInput
+                          label="Password"
+                          mode="outlined"
+                          secureTextEntry={!showPassword}
+                          value={password}
+                          onChangeText={setPassword}
+                          style={[styles.input, {
+                            fontWeight: '700',
+                            fontSize: responsive.getFontSize(16)
+                          }]}
+                          disabled={loading}
+                          left={<TextInput.Icon icon="lock" />}
+                          dense={Platform.OS === 'android'}
+                          contentStyle={Platform.OS === 'android' ? { paddingVertical: 8 } : {}}
+                          right={
+                            <TextInput.Icon 
+                              icon={showPassword ? "eye-off" : "eye"} 
+                              onPress={() => setShowPassword(!showPassword)}
+                            />
+                          }
+                          theme={{
+                            colors: {
+                              primary: '#C41E3A',
+                              background: 'rgba(255, 255, 255, 0.9)',
+                              outline: 'rgba(102, 126, 234, 0.3)',
+                              onSurfaceVariant: '#000000',
+                              onSurface: '#000000',
+                            }
+                          }}
+                        />
+                      </View>
+                      
+                      <View style={styles.buttonContainer}>
+                        <LinearGradient
+                          colors={['#8B0000', '#C41E3A', '#FFD700']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.gradientWrapper}
+                        >
+                          <Button
+                            mode="contained"
+                            onPress={handleLogin}
+                            disabled={loading}
+                            contentStyle={styles.loginButtonContent}
+                            labelStyle={styles.loginButtonText}
+                            style={[styles.loginButton, { backgroundColor: 'transparent' }]}
+                            rippleColor="rgba(255, 255, 255, 0.3)"
+                          >
+                            {loading ? (
+                              <View style={styles.loadingContainer}>
+                                <ActivityIndicator color="#fff" size="small" />
+                                <Text style={styles.loadingText}>Logging in...</Text>
+                              </View>
+                            ) : (
+                              <View style={styles.buttonTextContainer}>
+                                <Text style={styles.loginButtonText}>Login</Text>
+                                <Ionicons
+                                  name="arrow-forward"
+                                  size={responsive.getIconSize(20)}
+                                  color="#fff"
+                                />
+                              </View>
+                            )}
+                          </Button>
+                        </LinearGradient>
+                      </View>
+                      
+                      <TouchableOpacity 
+                        onPress={() => navigation.navigate('Register')}
+                        disabled={loading}
+                        style={styles.registerWrapper}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.registerText}>
+                          Need to create accounts? <Text style={styles.registerLink}>Register Users</Text>
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* <Button mode="outlined" onPress={debugPrintTables} style={{ marginTop: 20 }}>
+                        Debug DB
+                      </Button> */}
+                    </View>
                   </View>
                 </View>
               </BlurView>
@@ -607,7 +609,6 @@ const styles = StyleSheet.create({
   glassCard: {
     width: '100%',
     borderRadius: responsive.getSize(25),
-    overflow: 'hidden',
     elevation: Platform.OS === 'android' ? 24 : 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
@@ -788,4 +789,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
+  cardShadowWrapper: {
+    borderRadius: responsive.getSize(25),
+    overflow: 'hidden',
+  }
 });

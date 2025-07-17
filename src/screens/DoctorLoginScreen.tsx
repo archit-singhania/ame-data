@@ -45,7 +45,7 @@ const responsive = {
 };
 
 type LoginDoctorProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
+  navigation: NativeStackNavigationProp<RootStackParamList, 'DashboardDoctor'>;
 };
 
 export default function LoginDoctor({ navigation }: LoginDoctorProps) {
@@ -169,7 +169,7 @@ export default function LoginDoctor({ navigation }: LoginDoctorProps) {
       
       if (user) {
         Alert.alert('Welcome Back!', `Hello Dr. ${user.full_name}, access granted`);
-        navigation.navigate('Dashboard');
+        navigation.navigate('DashboardDoctor');
       }
     } catch (error) {
       const err = error as Error;

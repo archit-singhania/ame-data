@@ -9,13 +9,14 @@ import {
   TouchableOpacity,
   Platform,
   Easing,
-  Image
+  Image,
+  ScrollView
 } from 'react-native';
 import { Text, TextInput, Menu } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { initDatabase, registerUser, UserRole } from '../utils/sqlite';
+import { initDatabase, registerUser, UserRole, getUserCount } from '../utils/sqlite';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width >= 768;
@@ -62,7 +63,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [identity, setIdentity] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.PERSONNEL);
+  const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.ADMIN);
   const [loading, setLoading] = useState<boolean>(false);
   const [personnelIdType, setPersonnelIdType] = useState<'regt' | 'irla'>('regt');
   const [menuVisible, setMenuVisible] = useState<boolean>(false);
@@ -85,7 +86,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     rotate: new Animated.Value(0)
   }))).current;
 
-  const roleChipAnims = useRef(Array.from({ length: 3 }, () => ({
+  const roleChipAnims = useRef(Array.from({ length: 2 }, () => ({
     scale: new Animated.Value(0.8),
     opacity: new Animated.Value(0),
     bounce: new Animated.Value(0)
@@ -306,19 +307,16 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   };
 
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'admin') {
-      Alert.alert('Access Denied', 'Only administrators can register new users', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
-      return;
-    }
-    
-    initDatabase();
-    
-    setTimeout(() => {
-      startEntranceAnimations();
-      startContinuousAnimations();
-    }, 300);
+    const checkAccess = () => {
+      initDatabase();
+
+      setTimeout(() => {
+        startEntranceAnimations();
+        startContinuousAnimations();
+      }, 300);
+    };
+
+    checkAccess();
   }, [currentUser]);
 
   useEffect(() => {
@@ -403,7 +401,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     setLoading(true);
     try {
       const userId = registerUser(
-        currentUser?.id ?? 1, 
+        1,
         name,
         rank,
         regtId,
@@ -419,22 +417,22 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         useNativeDriver: true,
       }).start();
 
-      Alert.alert('Success', `${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} registered successfully`, [
-        {
-          text: 'OK',
-          onPress: () => {
-            setName('');
-            setRank('');
-            setRegtId('');
-            setIdentity('');
-            setPassword('');
-            setConfirmPassword('');
-            setSelectedRole(UserRole.PERSONNEL);
-            setPersonnelIdType('regt');
-            navigation.goBack();
+      Alert.alert(
+        'Success', 
+        `${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} registered successfully`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (selectedRole === UserRole.ADMIN) {
+                navigation.navigate('LoginAdmin');
+              } else if (selectedRole === UserRole.DOCTOR) {
+                navigation.navigate('LoginDoctor');
+              }
+            }
           }
-        }
-      ]);
+        ]
+      );
     } catch (error) {
       console.error('Error registering user:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to register user');
@@ -709,7 +707,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
           <View style={styles.roleContainer}>
             <Text style={styles.roleLabel}>Select Role:</Text>
             <View style={styles.roleChipsContainer}>
-              {[UserRole.ADMIN, UserRole.DOCTOR, UserRole.PERSONNEL].map((role, index) => (
+              {[UserRole.ADMIN, UserRole.DOCTOR].map((role, index) => (
                 <RoleChip
                   key={role}
                   role={role}
@@ -763,40 +761,89 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
               >
                 {field.type === 'dropdown' || field.type === 'dropdown-rank' ? (
                   <View style={styles.dropdownContainer}>
-                    <Text style={styles.dropdownLabel}>ID Type:</Text>
+                    <Text style={styles.dropdownLabel}>Rank:</Text>
                     <Menu
                       visible={menuVisible && field.label === 'Rank'}
                       onDismiss={() => setMenuVisible(false)}
+                      contentStyle={styles.menuContent}
                       anchor={
                         <TouchableOpacity 
                           style={styles.dropdownButton}
                           onPress={() => setMenuVisible(true)}
                         >
                           <LinearGradient
-                            colors={['rgba(0,212,255,0.2)', 'rgba(255,255,255,0.1)']}
+                            colors={['rgba(0,212,255,0.25)', 'rgba(138,43,226,0.25)', 'rgba(30,144,255,0.25)']}
                             style={styles.dropdownGradient}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                           >
-                            <Text style={styles.dropdownButtonText}>
-                              {rank || 'Select Rank'}
-                            </Text>
-                            <Text style={styles.chevronText}>▼</Text>
+                            <View style={styles.dropdownContent}>
+                              <Text style={styles.dropdownButtonText}>
+                                {rank || 'Select Rank'}
+                              </Text>
+                              <Animated.View
+                                style={[
+                                  styles.chevronContainer,
+                                  {
+                                    transform: [
+                                      {
+                                        rotate: menuVisible ? '180deg' : '0deg',
+                                      },
+                                    ],
+                                  },
+                                ]}
+                              >
+                                <LinearGradient
+                                  colors={['#00d4ff', '#8a2be2']}
+                                  style={styles.chevronGradient}
+                                >
+                                  <Text style={styles.chevronText}>▼</Text>
+                                </LinearGradient>
+                              </Animated.View>
+                            </View>
                           </LinearGradient>
                         </TouchableOpacity>
                       }
                     >
-                      {(selectedRole === 'doctor' ? DOCTOR_RANKS : ADMIN_PERSONNEL_RANKS).map((item, idx) => (
-                        <Menu.Item 
-                          key={idx}
-                          onPress={() => {
-                            setRank(item);
-                            setMenuVisible(false);
-                          }} 
-                          title={item}
-                          titleStyle={styles.menuItemText}
-                        />
-                      ))}
+                      <ScrollView 
+                        style={styles.menuScrollContainer}
+                        showsVerticalScrollIndicator={true}
+                        nestedScrollEnabled={true}
+                      >
+                        {(selectedRole === 'doctor' ? DOCTOR_RANKS : ADMIN_PERSONNEL_RANKS).map((item, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            style={[
+                              styles.menuItem,
+                              rank === item && styles.selectedMenuItem
+                            ]}
+                            onPress={() => {
+                              setRank(item);
+                              setMenuVisible(false);
+                            }}
+                          >
+                            <LinearGradient
+                              colors={rank === item ? 
+                                ['rgba(0,212,255,0.3)', 'rgba(138,43,226,0.3)'] : 
+                                ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']
+                              }
+                              style={styles.menuItemGradient}
+                            >
+                              <Text style={[
+                                styles.menuItemText,
+                                rank === item && styles.selectedMenuItemText
+                              ]}>
+                                {item}
+                              </Text>
+                              {rank === item && (
+                                <View style={styles.selectedIndicator}>
+                                  <Text style={styles.selectedIndicatorText}>✓</Text>
+                                </View>
+                              )}
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
                     </Menu>
                   </View>
                 ) : (
@@ -1039,10 +1086,6 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  chevronText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: responsive.getFontSize(12),
-  },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: responsive.getSpacing(20),
@@ -1192,12 +1235,14 @@ const styles = StyleSheet.create({
   },
   dropdownContainer: {
     width: '100%',
+    alignItems: 'center',
   },
   dropdownLabel: {
     fontSize: responsive.getFontSize(16),
     color: '#ffffff',
     marginBottom: responsive.getSpacing(10),
     fontWeight: '600',
+    textAlign: 'center',
   },
   dropdownButton: {
     borderRadius: responsive.getSize(12),
@@ -1208,28 +1253,16 @@ const styles = StyleSheet.create({
     shadowRadius: responsive.getSize(10),
     elevation: 8,
   },
-  dropdownGradient: {
-    paddingHorizontal: responsive.getSpacing(20),
-    paddingVertical: responsive.getSpacing(15),
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
   dropdownButtonText: {
     color: '#ffffff',
     fontSize: responsive.getFontSize(16),
     fontWeight: '600',
   },
-  menuItemText: {
-    color: '#1a1a2e',
-    fontSize: responsive.getFontSize(16),
-  },
   buttonContainer: {
     width: '100%',
     marginTop: responsive.getSpacing(30),
     marginBottom: responsive.getSpacing(20),
+    alignItems: 'center',
   },
   submitButton: {
     borderRadius: responsive.getSize(30),
@@ -1239,10 +1272,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: responsive.getSize(20),
     elevation: 15,
+    alignSelf: 'center', 
+    minWidth: '100%', 
+    maxWidth: '100%',
   },
   submitButtonGradient: {
     paddingVertical: responsive.getSpacing(18),
-    paddingHorizontal: responsive.getSpacing(40),
+    paddingHorizontal: responsive.getSpacing(30),
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -1286,6 +1322,8 @@ const styles = StyleSheet.create({
   backButtonContainer: {
     width: '100%',
     marginTop: responsive.getSpacing(20),
+    marginBottom: responsive.getSpacing(20),
+    alignItems: 'center',
   },
   backButton: {
     borderRadius: responsive.getSize(25),
@@ -1298,11 +1336,13 @@ const styles = StyleSheet.create({
   },
   backButtonGradient: {
     paddingVertical: responsive.getSpacing(12),
-    paddingHorizontal: responsive.getSpacing(30),
+    paddingHorizontal: responsive.getSpacing(20),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
+    minWidth: '50%',
+    maxWidth: '60%',
   },
   backButtonText: {
     color: 'rgba(255,255,255,0.9)',
@@ -1379,4 +1419,110 @@ const styles = StyleSheet.create({
     shadowRadius: responsive.getSize(30),
     elevation: 20,
   },
+  menuContent: {
+  backgroundColor: 'rgba(26,26,46,0.95)',
+  borderRadius: responsive.getSize(12),
+  borderWidth: 1,
+  borderColor: 'rgba(0,212,255,0.3)',
+  shadowColor: '#00d4ff',
+  shadowOffset: { width: 0, height: responsive.getSize(8) },
+  shadowOpacity: 0.5,
+  shadowRadius: responsive.getSize(15),
+  elevation: 15,
+  maxHeight: height * 0.4,
+},
+menuScrollContainer: {
+  maxHeight: height * 0.35,
+  width: '100%',
+},
+dropdownContent: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  minHeight: responsive.getSize(50),
+},
+chevronContainer: {
+  width: responsive.getSize(24),
+  height: responsive.getSize(24),
+  borderRadius: responsive.getSize(12),
+  overflow: 'hidden',
+  marginLeft: responsive.getSpacing(10),
+},
+chevronGradient: {
+  width: '100%',
+  height: '100%',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+menuItem: {
+  borderRadius: responsive.getSize(8),
+  marginVertical: responsive.getSpacing(2),
+  marginHorizontal: responsive.getSpacing(4),
+  overflow: 'hidden',
+},
+menuItemGradient: {
+  paddingHorizontal: responsive.getSpacing(16),
+  paddingVertical: responsive.getSpacing(12),
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.1)',
+  borderRadius: responsive.getSize(8),
+},
+menuItemText: {
+  color: '#ffffff',
+  fontSize: responsive.getFontSize(15),
+  fontWeight: '500',
+},
+selectedMenuItem: {
+  transform: [{ scale: 1.02 }],
+},
+selectedMenuItemText: {
+  color: '#00d4ff',
+  fontWeight: 'bold',
+  textShadowColor: 'rgba(0,212,255,0.5)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 3,
+},
+selectedIndicator: {
+  width: responsive.getSize(20),
+  height: responsive.getSize(20),
+  borderRadius: responsive.getSize(10),
+  backgroundColor: '#00d4ff',
+  alignItems: 'center',
+  justifyContent: 'center',
+  shadowColor: '#00d4ff',
+  shadowOffset: { width: 0, height: 0 },
+  shadowOpacity: 1,
+  shadowRadius: responsive.getSize(8),
+  elevation: 8,
+},
+selectedIndicatorText: {
+  color: '#ffffff',
+  fontSize: responsive.getFontSize(12),
+  fontWeight: 'bold',
+},
+dropdownGradient: {
+  paddingHorizontal: responsive.getSpacing(20),
+  paddingVertical: responsive.getSpacing(8),
+  borderRadius: responsive.getSize(12),
+  borderWidth: 2,
+  borderColor: 'rgba(0,212,255,0.4)',
+  shadowColor: '#00d4ff',
+  shadowOffset: { width: 0, height: 0 },
+  shadowOpacity: 0.3,
+  shadowRadius: responsive.getSize(8),
+  elevation: 8,
+  width: "100%", 
+  alignSelf: 'center',
+},
+chevronText: {
+  color: '#ffffff',
+  fontSize: responsive.getFontSize(10),
+  fontWeight: 'bold',
+  textShadowColor: 'rgba(0,0,0,0.5)',
+  textShadowOffset: { width: 1, height: 1 },
+  textShadowRadius: 2,
+},
 });

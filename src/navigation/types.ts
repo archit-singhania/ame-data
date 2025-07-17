@@ -1,16 +1,21 @@
-import { User } from '../navigation/models';
+import { User } from '../utils/sqlite';
 
 export type RootStackParamList = {
   Landing: undefined;
   RoleSelection: undefined;
   LoginAdmin: undefined;
   LoginDoctor: undefined;
-  LoginPersonnel: undefined;
   Register: { currentUser: User };
-  Dashboard: undefined;
+  DashboardAdmin: undefined;
+  DashboardDoctor: undefined;
   AMEStatus: undefined;
   LMCRecords: undefined;
-  AddVitals: undefined;
+  AMEStatViewer: undefined;
+  LMCStatViewer: undefined;
+  PrescriptionManagement: {
+    doctorId?: string;
+    doctorname?: string;
+  } | undefined;
   ReportsDetailScreen: undefined;
-  Appointments: undefined;
+  RecordManagement: { adminId?: number };
 };

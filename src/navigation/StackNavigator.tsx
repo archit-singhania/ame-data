@@ -3,14 +3,16 @@ import { NavigationContainer } from '@react-navigation/native';
 import LandingScreen from '../screens/LandingScreen';
 import LoginAdmin from '../screens/AdminLoginScreen';
 import LoginDoctor from '../screens/DoctorLoginScreen';
-import LoginPersonnel from '../screens/PersonnelLoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
-import DashboardScreen from '../screens/DashboardScreen';
+import DashboardAdmin from '../screens/AdminDashboard';
+import DashboardDoctor from '../screens/DoctorDashboard';
 import AMEStatus from '../screens/AMEStatus';
 import LMCRecords from '../screens/LMCRecords';
+import AMEStatViewer from '../screens/AMEStatViewer';
+import LMCStatViewer from '../screens/LMCStatViewer';
 import ReportsDetailScreen from '../screens/ReportsDetailScreen';
-import AddVitalsScreen from '../screens/AddVitalsScreen';
-import AppointmentsScreen from '../screens/AppointmentsScreen';
+import PrescriptionManagement from '../screens/PrescriptionManagement';
+import RecordManagement from '../screens/RecordManagement';
 import RoleSelection from '@/screens/RoleSelection';
 
 import { RootStackParamList } from './types';
@@ -28,14 +30,16 @@ export default function StackNavigator() {
         <Stack.Screen name="RoleSelection" component={RoleSelection} />
         <Stack.Screen name="LoginAdmin" component={LoginAdmin} />
         <Stack.Screen name="LoginDoctor" component={LoginDoctor} />
-        <Stack.Screen name="LoginPersonnel" component={LoginPersonnel} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="AMEStatus" component={AMEStatus} />
         <Stack.Screen name="LMCRecords" component={LMCRecords} />
+        <Stack.Screen name="AMEStatViewer" component={AMEStatViewer} />
+        <Stack.Screen name="LMCStatViewer" component={LMCStatViewer} />
         <Stack.Screen name="ReportsDetailScreen" component={ReportsDetailScreen} />
-        <Stack.Screen name="Dashboard" component={DashboardScreen} />
-        <Stack.Screen name="AddVitals" component={AddVitalsScreen} />
-        <Stack.Screen name="Appointments" component={AppointmentsScreen} />
+        <Stack.Screen name="DashboardAdmin" component={DashboardAdmin} />
+        <Stack.Screen name="DashboardDoctor" component={DashboardDoctor} />
+        <Stack.Screen name="PrescriptionManagement" component={PrescriptionManagement} />
+        <Stack.Screen name="RecordManagement" component={RecordManagement} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -1140,7 +1140,15 @@ export default function LandingScreen({ navigation }: any) {
                 }}
               >
                 <TouchableOpacity
-                  onPress={handleGetStarted}
+                  // onPress={handleGetStarted}
+                  // onPress={() => navigation.navigate('AMEStatViewer')}
+                  // onPress={() => navigation.navigate('LMCStatViewer')}
+                  // onPress={() => navigation.navigate('ReportsDetailScreen')}
+                  // onPress={() => navigation.navigate('AMEStatus')}
+                  // onPress={() => navigation.navigate('LMCRecords')}
+                  // onPress={() => navigation.navigate('PrescriptionManagement')}
+                  // onPress={() => navigation.navigate('DashboardAdmin')}
+                  onPress={() => navigation.navigate('DashboardDoctor')}
                   style={{
                     width: '100%',
                     alignItems: 'center',

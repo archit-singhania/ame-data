@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   Platform,
   TouchableOpacity,
   TextInput, 
-  FlatList
+  FlatList,
+  Dimensions
 } from 'react-native';
 import { Button, Card, DataTable, Portal, Dialog, Surface } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,9 +19,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import XLSX from 'xlsx';
-import { insertLowMedicalRecord, getLowMedicalRecords, createLowMedicalTable } from '../utils/sqlite';
+import { insertLowMedicalRecord, getLowMedicalRecords, createLowMedicalTable, clearAllLowMedicalRecords } from '../utils/sqlite';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+const { width, height } = Dimensions.get('window');
+const isTablet = width >= 768;
+const isLargeTablet = width >= 1024;
 
 export default function LMCRecords() {
   const [loading, setLoading] = useState(false);
@@ -37,6 +42,39 @@ export default function LMCRecords() {
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
+
+  const deleteAllRecords = async () => {
+    Alert.alert(
+      'Delete All Records',
+      'Are you sure you want to delete all Low Medical Category records? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete All', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await clearAllLowMedicalRecords();
+              await loadLowMedicalRecords();
+              setLoading(false);
+              Alert.alert('Success', 'All Low Medical Category records have been deleted.');
+            } catch (error) {
+              console.error('Error deleting all records:', error);
+              setLoading(false);
+              Alert.alert('Error', 'Failed to delete all records');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const getColumnsPerRow = () => {
+    if (isLargeTablet) return 3;
+    if (isTablet) return 2;
+    return 3;
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -259,7 +297,93 @@ export default function LMCRecords() {
       const workbook = XLSX.read(fileData, { type: 'base64' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || '');
+      const jsonData: any[] = [];
+
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        const row: any = {};
+        const getCell = (C: number) => worksheet[XLSX.utils.encode_cell({ r: R, c: C })];
+
+        row['SL NO'] = getCell(0)?.v ?? '';
+        row['IRLA NO/REGT NO'] = getCell(1)?.v ?? '';
+        row['RANK'] = getCell(2)?.v ?? '';
+        row['NAME'] = getCell(3)?.v ?? '';
+        row['DISEASE/REASON'] = getCell(4)?.v ?? '';
+        row['MEDICAL CATEGORY'] = getCell(5)?.v ?? '';
+
+        const rawDatesRaw = getCell(6)?.w?.toString() ?? getCell(6)?.v?.toString() ?? '';
+        let processedDates: string[] = [];
+
+        if (rawDatesRaw && rawDatesRaw.trim()) {
+          const lines = rawDatesRaw.split(/[\r\n\u000a\u000b\u000c\u000d\u0085\u2028\u2029,;|&]+/);
+          
+          for (const line of lines) {
+            const cleanLine = line.trim();
+            if (!cleanLine) continue;
+            
+            const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
+            const foundDates = cleanLine.match(datePattern);
+            
+            if (foundDates && foundDates.length > 0) {
+              processedDates.push(...foundDates);
+            } else {
+              const splitDates = cleanLine
+                .split(/[\s,;|&]+/)
+                .map((d: string) => d.trim())
+                .filter((d: string) => d && d.length > 5);
+              
+              if (splitDates.length > 0) {
+                processedDates.push(...splitDates);
+              } else if (cleanLine.length > 5) {
+                processedDates.push(cleanLine);
+              }
+            }
+          }
+        }
+
+        const finalDates = [...new Set(processedDates.filter(d => d && d.trim().length > 0))];
+        row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION'] = finalDates;
+
+        const categoryDates = Array.isArray(row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION'])
+          ? row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION']
+          : [row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION']];
+
+        let parsedCategoryDates: string[] = [];
+
+        if (categoryDates && categoryDates.length > 0) {
+          categoryDates.forEach((dateItem: any) => {
+            const dateString = dateItem?.toString().trim() || '';
+            if (dateString && dateString !== '' && dateString !== 'undefined' && dateString !== 'null') {
+              if (dateString.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
+                parsedCategoryDates.push(dateString);
+              } else {
+                const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
+                const foundDates = dateString.match(datePattern);
+                
+                if (foundDates && foundDates.length > 0) {
+                  parsedCategoryDates.push(...foundDates);
+                } else {
+                  const splitDates = dateString.split(/[\s,;|\n&]+/)
+                    .map((date: string) => date.trim())
+                    .filter((date: string) => date && date.length > 5);
+                  
+                  if (splitDates.length > 0) {
+                    parsedCategoryDates.push(...splitDates);
+                  } else if (dateString.length > 5) {
+                    parsedCategoryDates.push(dateString);
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        row['LAST MEDICAL BOARD APPEAR DATE'] = getCell(7)?.v ?? '';
+        row['MEDICAL BOARD DUE DATE'] = getCell(8)?.v ?? '';
+        row['REMARKS'] = getCell(9)?.v ?? '';
+
+        jsonData.push(row);
+      }
 
       setUploadProgress(30);
 
@@ -275,6 +399,37 @@ export default function LMCRecords() {
           continue;
         }
 
+        const categoryDates = Array.isArray(row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION'])
+          ? row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION']
+          : [row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION']];
+        let parsedCategoryDates: string[] = [];
+
+        if (categoryDates && categoryDates.length > 0) {
+          categoryDates.forEach((dateItem: any) => {
+            const dateString = dateItem?.toString().trim() || '';
+            if (dateString && dateString !== '' && dateString !== 'undefined' && dateString !== 'null') {
+              const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
+              const foundDates = dateString.match(datePattern);
+              
+              if (foundDates && foundDates.length > 0) {
+                parsedCategoryDates.push(...foundDates);
+              } else {
+                const splitDates = dateString.split(/[,;|\n&\s]+/)
+                  .map((date: string) => date.trim())
+                  .filter((date: string) => date && date.length > 5);
+                
+                if (splitDates.length > 0) {
+                  parsedCategoryDates.push(...splitDates);
+                } else {
+                  parsedCategoryDates.push(dateString);
+                }
+              }
+            }
+          });
+        }
+
+        parsedCategoryDates = [...new Set(parsedCategoryDates)];
+
         validatedData.push({
           serial_no: row['SL NO'] || (i + 1),
           personnel_id: row['IRLA NO/REGT NO'],
@@ -282,7 +437,7 @@ export default function LMCRecords() {
           name: row['NAME'] || '',
           disease_reason: row['DISEASE/REASON'] || '',
           medical_category: row['MEDICAL CATEGORY'] || '',
-          category_allotment_date: row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION'] || '',
+          category_allotment_date: parsedCategoryDates.length > 0 ? JSON.stringify(parsedCategoryDates) : '[]',
           last_medical_board_date: row['LAST MEDICAL BOARD APPEAR DATE'] || '',
           medical_board_due_date: row['MEDICAL BOARD DUE DATE'] || '',
           remarks: row['REMARKS'] || '',
@@ -339,6 +494,83 @@ export default function LMCRecords() {
     </Surface>
   );
 
+  const renderCategoryDates = (dateString: string) => {
+    try {
+      if (!dateString || dateString === 'null' || dateString === 'undefined' || 
+          dateString.trim() === '' || dateString === '[]') {
+        return <Text style={styles.fieldValue}>No dates available</Text>;
+      }
+
+      let dates: string[] = [];
+      
+      try {
+        const parsed = JSON.parse(dateString);
+        if (Array.isArray(parsed)) {
+          dates = parsed;
+        } else if (typeof parsed === 'string') {
+          dates = [parsed];
+        }
+      } catch {
+        const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
+        const foundDates = dateString.match(datePattern);
+        
+        if (foundDates && foundDates.length > 0) {
+          dates = foundDates;
+        } else {
+          dates = dateString.split(/[,;|\n&\s]+/)
+            .map(date => date.trim())
+            .filter(date => date && date.length > 5);
+        }
+      }
+
+      const validDates = dates
+        .filter(date => date != null && date.toString().trim().length > 0)
+        .map(date => date.toString().trim())
+        .filter(date => date !== 'undefined' && date !== 'null' && date !== '' && date.length > 5);
+
+      if (validDates.length === 0) {
+        return <Text style={styles.fieldValue}>No valid dates found</Text>;
+      }
+
+    const sortedDates = validDates.sort((a, b) => {
+      try {
+        const parseDate = (dateStr: string) => {
+          const parts = dateStr.split('.');
+          if (parts.length === 3) {
+            const day = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1; 
+            const year = parseInt(parts[2]);
+            const fullYear = year < 100 ? (year < 50 ? 2000 + year : 1900 + year) : year;
+            return new Date(fullYear, month, day);
+          }
+          return new Date(dateStr);
+        };
+        
+        const dateA = parseDate(a);
+        const dateB = parseDate(b);
+        return dateA.getTime() - dateB.getTime();
+      } catch {
+        return a.localeCompare(b);
+      }
+    });
+
+      return (
+        <View style={styles.datesContainer}>
+          <View style={styles.datesGrid}>
+            {sortedDates.map((date, index) => (
+              <View key={`date-${index}-${date}`} style={styles.dateChip}>
+                <Text style={styles.dateChipText}>{date}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      );
+    } catch (error) {
+      console.error('Error rendering category dates:', error, 'Input:', dateString);
+      return <Text style={styles.fieldValue}>{dateString || 'Error processing dates'}</Text>;
+    }
+  };
+
   const renderRecordItem = ({ item, index }: { item: any; index: number }) => (
     <View style={styles.recordItem}>
       <View style={styles.recordHeader}>
@@ -366,8 +598,8 @@ export default function LMCRecords() {
             </View>
           </View>
           <View style={styles.recordField}>
-            <Text style={styles.fieldLabel}>CATEGORY ALLOTMENT DATE:</Text>
-            <Text style={styles.fieldValue} numberOfLines={0}>{item.category_allotment_date}</Text>
+            <Text style={styles.fieldLabel}>CATEGORY ALLOTMENT DATES:</Text>
+            {renderCategoryDates(item.category_allotment_date)}
           </View>
           <View style={styles.recordField}>
             <Text style={styles.fieldLabel}>LAST MEDICAL BOARD DATE:</Text>
@@ -448,19 +680,23 @@ export default function LMCRecords() {
             }
           ]}
         />
-        <View style={styles.scrollContent}>
-          <Animated.View 
-            style={[
-              styles.content,
-              {
-                opacity: fadeAnim,
-                transform: [
-                  { translateY: slideAnim },
-                  { scale: scaleAnim }
-                ]
-              }
-            ]}
+          <ScrollView 
+            style={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContainer}
           >
+            <Animated.View 
+              style={[
+                styles.content,
+                {
+                  opacity: fadeAnim,
+                  transform: [
+                    { translateY: slideAnim },
+                    { scale: scaleAnim }
+                  ]
+                }
+              ]}
+            >
             <View style={styles.headerContainer}>
               <View style={styles.iconContainer}>
                 <Text style={styles.iconText}>🏥</Text>
@@ -497,6 +733,18 @@ export default function LMCRecords() {
               >
                 Upload Excel File
               </Button>
+
+              <Button
+                mode="outlined"
+                onPress={deleteAllRecords}
+                style={[styles.deleteButton]}
+                contentStyle={styles.buttonContent}
+                labelStyle={styles.deleteButtonLabel}
+                icon="delete"
+                disabled={lowMedicalRecords.length === 0}
+              >
+                Delete All Records
+              </Button>
             </View>
 
             <View style={styles.searchContainer}>
@@ -519,40 +767,32 @@ export default function LMCRecords() {
 
 
             {filteredRecords.length > 0 && (
-              <FlatList
-                data={filteredRecords}
-                renderItem={renderRecordItem}
-                keyExtractor={(item, index) => index.toString()}
-                showsVerticalScrollIndicator={true}
-                style={styles.recordsList}
-                ItemSeparatorComponent={() => <View style={styles.recordSeparator} />}
-                contentContainerStyle={{ paddingTop: 60, paddingBottom: 40 }}
-              />
+              <View style={styles.recordsContainer}>
+                {filteredRecords.map((item, index) => (
+                  <View key={index}>
+                    {renderRecordItem({ item, index })}
+                    {index < filteredRecords.length - 1 && <View style={styles.recordSeparator} />}
+                  </View>
+                ))}
+              </View>
             )}
 
             {filteredRecords.length === 0 && lowMedicalRecords.length > 0 && (
-              <FlatList
-                data={[]}
-                renderItem={() => null}
-                ListEmptyComponent={() => (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyIcon}>
-                      {lowMedicalRecords.length === 0 ? '📋' : '🔍'}
-                    </Text>
-                    <Text style={styles.emptyText}>
-                      {lowMedicalRecords.length === 0 
-                        ? 'No Low Medical Category Records Found' 
-                        : 'No Records Found'}
-                    </Text>
-                    <Text style={styles.emptySubtext}>
-                      {lowMedicalRecords.length === 0
-                        ? 'Download the template, fill it with low medical category data, and upload it to get started.'
-                        : 'No records match your search criteria. Try a different search term.'}
-                    </Text>
-                  </View>
-                )}
-                contentContainerStyle={{ paddingTop: 60, paddingBottom: 40 }}
-              />
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyIcon}>
+                  {lowMedicalRecords.length === 0 ? '📋' : '🔍'}
+                </Text>
+                <Text style={styles.emptyText}>
+                  {lowMedicalRecords.length === 0 
+                    ? 'No Low Medical Category Records Found' 
+                    : 'No Records Found'}
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  {lowMedicalRecords.length === 0
+                    ? 'Download the template, fill it with low medical category data, and upload it to get started.'
+                    : 'No records match your search criteria. Try a different search term.'}
+                </Text>
+              </View>
             )}
 
             {lowMedicalRecords.length === 0 && (
@@ -565,10 +805,10 @@ export default function LMCRecords() {
               </View>
             )}
           </Animated.View>
-        </View>
+        </ScrollView>
         
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate('Dashboard')}
+          onPress={() => (navigation as any).navigate('DashboardAdmin')}
           style={styles.backButton}
         >
           <Text style={styles.backButtonText}>← Back to Dashboard</Text>
@@ -602,12 +842,71 @@ export default function LMCRecords() {
 }
 
 const styles = StyleSheet.create({
+  datesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  dateChip: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: '#90CAF9',
+  },
+  dateChipText: {
+    fontSize: 12,
+    color: '#1565C0',
+    fontWeight: '500',
+  },
+  recordField: {
+    marginRight: isTablet ? 30 : 20,
+    minWidth: isTablet ? 200 : 150,
+    maxWidth: isTablet ? 300 : 220,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
+  },
+  datesContainer: {
+    flexDirection: 'column',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    paddingLeft: 5,
+    paddingTop: 4,
+    marginTop: 4
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    marginBottom: 2,
+  },
+  dateItem: {
+    fontSize: isTablet ? 14 : 12,
+    color: '#333',
+    flex: 1,
+    flexWrap: 'wrap',
+    lineHeight: isTablet ? 20 : 16,
+  },
+  dateBullet: {
+    color: '#8B0000',
+    fontSize: isTablet ? 16 : 14,
+    fontWeight: 'bold',
+    marginRight: 8,
+    marginTop: 2,
+  },
+  recordDetails: {
+    flexDirection: 'row',
+    minWidth: isLargeTablet ? 2000 : isTablet ? 1600 : 1400,
+  },
   container: {
     flex: 1,
   },
   gradient: {
     flex: 1,
-    padding: 20,
+    padding: isTablet ? 30 : 20,
   },
   floatingElement: {
     position: 'absolute',
@@ -615,41 +914,47 @@ const styles = StyleSheet.create({
     borderRadius: 50,
   },
   element1: {
-    width: 80,
-    height: 80,
+    width: isTablet ? 100 : 80,
+    height: isTablet ? 100 : 80,
     top: '8%',
     left: '10%',
   },
   element2: {
-    width: 60,
-    height: 60,
+    width: isTablet ? 80 : 60,
+    height: isTablet ? 80 : 60,
     top: '15%',
     right: '15%',
   },
   scrollContent: {
     flex: 1,
-    paddingTop: 60,
-    paddingBottom: 40,
+    paddingTop: isTablet ? 80 : 60,
+    paddingBottom: isTablet ? 60 : 40,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingTop: isTablet ? 80 : 60,
+    paddingBottom: isTablet ? 60 : 40,
   },
   recordsList: {
     flex: 1,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     width: '100%',
-    maxWidth: 800,
+    maxWidth: isLargeTablet ? 1200 : isTablet ? 900 : 800,
     alignSelf: 'center',
+    minHeight: height - 140
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: isTablet ? 40 : 30,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: isTablet ? 100 : 80,
+    height: isTablet ? 100 : 80,
+    borderRadius: isTablet ? 50 : 40,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -658,10 +963,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   iconText: {
-    fontSize: 36,
+    fontSize: isTablet ? 48 : 36,
   },
   heading: {
-    fontSize: 28,
+    fontSize: isLargeTablet ? 36 : isTablet ? 32 : 28,
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
@@ -671,79 +976,84 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   subheading: {
-    fontSize: 16,
+    fontSize: isTablet ? 20 : 16,
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     fontWeight: '500',
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 30,
-  },
-  statsCard: {
-    width: '31%',
-    marginBottom: 15,
-    borderRadius: 15,
-    borderLeftWidth: 4,
-    elevation: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  },
   statsContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
+    padding: isTablet ? 20 : 15,
   },
   statsIcon: {
-    fontSize: 24,
+    fontSize: isTablet ? 32 : 24,
     marginRight: 15,
   },
   statsText: {
     flex: 1,
   },
   statsValue: {
-    fontSize: 20,
+    fontSize: isTablet ? 28 : 20,
     fontWeight: 'bold',
     color: '#333',
   },
   statsTitle: {
-    fontSize: 12,
+    fontSize: isTablet ? 16 : 12,
     color: '#666',
     marginTop: 2,
   },
   actionContainer: {
     width: '100%',
-    marginBottom: 30,
+    marginBottom: isTablet ? 40 : 30,
+    alignItems: 'center',
+    flexDirection: isLargeTablet ? 'row' : 'column',
+    justifyContent: isLargeTablet ? 'space-around' : 'center',
   },
   actionButton: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFCC80',
     borderRadius: 25,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    marginBottom: 15,
+    marginBottom: isLargeTablet ? 0 : 15,
+    width: isLargeTablet ? '28%' : isTablet ? '60%' : '80%',
   },
   actionButtonOutlined: {
-    borderColor: 'white',
+    borderColor: '#4CAF50',
     borderWidth: 2,
     borderRadius: 25,
+    marginVertical: isLargeTablet ? 0 : 6,
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    width: isLargeTablet ? '28%' : isTablet ? '60%' : '80%',
   },
   buttonContent: {
-    height: 50,
+    height: isTablet ? 60 : 50,
   },
   buttonLabel: {
-    fontSize: 16,
+    fontSize: isTablet ? 18 : 16,
     fontWeight: 'bold',
-    color: '#8B0000',
+    color: '#8B4513',
   },
   buttonLabelOutlined: {
-    fontSize: 16,
+    fontSize: isTablet ? 18 : 16,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#FFA000',
+  },
+  deleteButton: {
+    borderColor: '#FF9800',
+    borderWidth: 2,
+    borderRadius: 25,
+    marginVertical: isLargeTablet ? 0 : 6,
+    backgroundColor: 'rgba(255, 152, 0, 0.2)',
+    width: isLargeTablet ? '28%' : isTablet ? '60%' : '80%',
+  },
+  deleteButtonLabel: {
+    color: '#F8F8FF',
+    fontSize: isTablet ? 18 : 16,
+    fontWeight: '600',
   },
   dataCard: {
     width: '100%',
@@ -753,84 +1063,84 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: '#8B0000',
-    fontSize: 18,
+    fontSize: isTablet ? 22 : 18,
     fontWeight: 'bold',
   },
   tableHeader: {
     color: '#8B0000',
     fontWeight: 'bold',
-    fontSize: 14,
+    fontSize: isTablet ? 16 : 14,
   },
   tableCell: {
     color: '#333',
-    fontSize: 12,
+    fontSize: isTablet ? 14 : 12,
   },
   categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: isTablet ? 12 : 8,
+    paddingVertical: isTablet ? 6 : 4,
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
   categoryText: {
     color: 'white',
-    fontSize: 10,
+    fontSize: isTablet ? 12 : 10,
     fontWeight: 'bold',
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: isTablet ? 80 : 60,
   },
   emptyIcon: {
-    fontSize: 64,
+    fontSize: isTablet ? 96 : 64,
     marginBottom: 20,
   },
   emptyText: {
     color: 'white',
-    fontSize: 20,
+    fontSize: isTablet ? 28 : 20,
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtext: {
     color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
+    fontSize: isTablet ? 18 : 14,
     textAlign: 'center',
-    paddingHorizontal: 40,
-    lineHeight: 20,
+    paddingHorizontal: isTablet ? 60 : 40,
+    lineHeight: isTablet ? 26 : 20,
   },
   progressContainer: {
     alignItems: 'center',
-    padding: 20,
+    padding: isTablet ? 30 : 20,
   },
   progressBar: {
     width: '100%',
-    height: 8,
+    height: isTablet ? 12 : 8,
     backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 4,
+    borderRadius: isTablet ? 6 : 4,
     overflow: 'hidden',
     marginBottom: 15,
   },
   progressFill: {
     height: '100%',
     backgroundColor: '#8B0000',
-    borderRadius: 4,
+    borderRadius: isTablet ? 6 : 4,
   },
   progressText: {
     color: '#666',
-    fontSize: 14,
+    fontSize: isTablet ? 18 : 14,
   },
   backButton: {
     alignSelf: 'center',
     marginBottom: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: isTablet ? 12 : 8,
+    paddingHorizontal: isTablet ? 18 : 12,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 8,
   },
   backButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: isTablet ? 20 : 16,
     fontWeight: 'bold',
   },
   searchContainer: {
@@ -838,73 +1148,84 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 25,
-    paddingHorizontal: 15,
+    paddingHorizontal: isTablet ? 20 : 15,
     marginBottom: 20,
     elevation: 4,
   },
   searchInput: {
     flex: 1,
-    height: 50,
-    fontSize: 16,
+    height: isTablet ? 60 : 50,
+    fontSize: isTablet ? 18 : 16,
     color: '#333',
   },
   searchIcon: {
-    fontSize: 20,
+    fontSize: isTablet ? 24 : 20,
     marginLeft: 10,
   },
   recordItem: {
     backgroundColor: '#f8f9fa',
     borderRadius: 12,
-    padding: 15,
-    marginVertical: 5,
+    padding: isTablet ? 20 : 15,
+    marginVertical: isTablet ? 8 : 5,
     elevation: 2,
   },
   recordHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
-    paddingBottom: 10,
+    marginBottom: isTablet ? 15 : 10,
+    paddingBottom: isTablet ? 15 : 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
   recordTitle: {
-    fontSize: 16,
+    fontSize: isTablet ? 20 : 16,
     fontWeight: 'bold',
     color: '#8B0000',
     flex: 1,
   },
   recordId: {
-    fontSize: 14,
+    fontSize: isTablet ? 18 : 14,
     color: '#666',
     fontWeight: '500',
   },
   recordScroll: {
     flexGrow: 0,
   },
-  recordDetails: {
-    flexDirection: 'row',
-    minWidth: 1200, 
-  },
-  recordField: {
-    marginRight: 20,
-    minWidth: 150,
-    maxWidth: 200,
-  },
   fieldLabel: {
-    fontSize: 12,
+    fontSize: isTablet ? 14 : 12,
     fontWeight: 'bold',
     color: '#8B0000',
     marginBottom: 4,
   },
   fieldValue: {
-    fontSize: 14,
+    fontSize: isTablet ? 16 : 14,
     color: '#333',
     flexWrap: 'wrap',
   },
   recordSeparator: {
     height: 1,
     backgroundColor: '#e0e0e0',
-    marginVertical: 5,
-  }
+    marginVertical: isTablet ? 8 : 5,
+  },
+  recordsContainer: {
+    width: '100%',
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: isTablet ? 40 : 30,
+  },
+  statsCard: {
+    width: width < 400 ? '100%' : (isLargeTablet ? '31%' : isTablet ? '48%' : '31%'),
+    marginBottom: 15,
+    borderRadius: 15,
+    borderLeftWidth: 4,
+    elevation: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
 });

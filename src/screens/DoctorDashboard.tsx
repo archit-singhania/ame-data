@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -7,14 +7,17 @@ import {
   Dimensions,
   StatusBar,
   TouchableOpacity,
-  ImageBackground
+  Alert,
 } from 'react-native';
-import { Text, Button, Card, Title, Paragraph } from 'react-native-paper';
+import { Text, Title, Paragraph } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
-export default function DashboardScreen({ navigation }: any) {
+export default function DashboardDoctor({ navigation }: any) {
+  const [currentDoctorId, setCurrentDoctorId] = useState('');
+  const [currentDoctorName, setCurrentDoctorName] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -36,6 +39,49 @@ export default function DashboardScreen({ navigation }: any) {
       opacity: new Animated.Value(0),
     }))
   ).current;
+
+  useEffect(() => {
+    const getDoctordetails = async () => {
+      try {
+        const doctorId = await AsyncStorage.getItem('doctorId');
+        const doctorName = await AsyncStorage.getItem('doctorName'); 
+        if (doctorId) {
+          setCurrentDoctorName(doctorId);
+        }
+        if (doctorName) {
+          setCurrentDoctorName(doctorName);
+        }
+      } catch (error) {
+      }
+    };
+    getDoctordetails();
+  }, []);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout Confirmation',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem('doctorId');
+              await AsyncStorage.removeItem('doctorName');
+              navigation.navigate('LoginDoctor');
+            } catch (error) {
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -162,13 +208,13 @@ export default function DashboardScreen({ navigation }: any) {
     });
   }, []);
 
-    const menuItems = [
+  const menuItems = [
     {
       title: 'AME Stats & Health Overview',
       description: 'View Annual Medical Examination status, medical history, and anthropometric measurements.',
       icon: '🏥',
       iconBg: '#FF6B6B',
-      onPress: () => navigation.navigate('AMEStatus'),
+      onPress: () => navigation.navigate('AMEStatViewer'),
       gradient: ['#134E5E', '#71B280'] as const,
       shadowColor: '#FF6B6B',
     },
@@ -177,7 +223,7 @@ export default function DashboardScreen({ navigation }: any) {
       description: 'Access classification records and status for personnel in low medical categories.',
       icon: '📋',
       iconBg: '#4ECDC4',
-      onPress: () => navigation.navigate('LMCRecords'),
+      onPress: () => navigation.navigate('LMCStatViewer'),
       gradient: ['#2b5876', '#4e4376'] as const,
       shadowColor: '#4ECDC4',
     },
@@ -191,11 +237,11 @@ export default function DashboardScreen({ navigation }: any) {
       shadowColor: '#A8E6CF',
     },
     {
-      title: 'Admin & Record Control',
-      description: 'Manage users, update data, and maintain tables and medical records efficiently.',
-      icon: '⚙️',
+      title: 'Prescription Management',
+      description: 'Create, manage, and track patient prescriptions and medication records.',
+      icon: '💊',
       iconBg: '#FFB74D',
-      onPress: () => navigation.navigate('RecordManagement'),
+      onPress: () => navigation.navigate('PrescriptionManagement', { doctorId: currentDoctorId, doctorname: currentDoctorName }),
       gradient: ['#485563', '#29323c'] as const,
       shadowColor: '#FFB74D',
     },
@@ -327,7 +373,7 @@ export default function DashboardScreen({ navigation }: any) {
               ]}
             >
               <Text style={styles.heading}>MedTrack Pro</Text>
-              <Text style={styles.subtitle}>Advanced Medical Records Dashboard</Text>
+              <Text style={styles.subtitle}>Doctor Portal Dashboard</Text>
               <View style={styles.divider} />
             </Animated.View>
           </Animated.View>
@@ -431,7 +477,7 @@ export default function DashboardScreen({ navigation }: any) {
             ]}
           >
             <TouchableOpacity
-              onPress={() => navigation.navigate('RoleSelection')}
+              onPress={handleLogout} 
               style={styles.logoutButton}
               activeOpacity={0.8}
             >
