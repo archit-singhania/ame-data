@@ -10,7 +10,8 @@ import AMEStatus from '../screens/AMEStatus';
 import LMCRecords from '../screens/LMCRecords';
 import AMEStatViewer from '../screens/AMEStatViewer';
 import LMCStatViewer from '../screens/LMCStatViewer';
-import ReportsDetailScreen from '../screens/ReportsDetailScreen';
+import ReportsDetailScreen_ADM from '../screens/ReportsDetailScreen_ADM';
+import ReportsDetailScreen_DOC from '../screens/ReportsDetailScreen_DOC';
 import PrescriptionManagement from '../screens/PrescriptionManagement';
 import RecordManagement from '../screens/RecordManagement';
 import RoleSelection from '@/screens/RoleSelection';
@@ -35,7 +36,8 @@ export default function StackNavigator() {
         <Stack.Screen name="LMCRecords" component={LMCRecords} />
         <Stack.Screen name="AMEStatViewer" component={AMEStatViewer} />
         <Stack.Screen name="LMCStatViewer" component={LMCStatViewer} />
-        <Stack.Screen name="ReportsDetailScreen" component={ReportsDetailScreen} />
+        <Stack.Screen name="ReportsDetailScreen_ADM" component={ReportsDetailScreen_ADM} />
+        <Stack.Screen name="ReportsDetailScreen_DOC" component={ReportsDetailScreen_DOC} />
         <Stack.Screen name="DashboardAdmin" component={DashboardAdmin} />
         <Stack.Screen name="DashboardDoctor" component={DashboardDoctor} />
         <Stack.Screen name="PrescriptionManagement" component={PrescriptionManagement} />

@@ -350,7 +350,7 @@ export const createAMETable = (): void => {
         present_category_awarded TEXT,
         category_reason TEXT,
         remarks TEXT,
-        ame_status TEXT,
+        status TEXT DEFAULT 'active',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );`
@@ -889,22 +889,24 @@ export const parseCategoryAllotmentDates = (dateString: string): string[] => {
       return [parsed];
     }
   } catch {
-    const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
+    const datePattern = /(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/g;
     const foundDates = dateString.match(datePattern);
     
     if (foundDates && foundDates.length > 0) {
-      return [...new Set(foundDates)];
+      return [...new Set(foundDates.filter(date => date.trim().length > 0))];
     }
     
-    const splitDates = dateString.split(/[\s,;|\n&]+/)
+    const splitDates = dateString.split(/[\s,;|\n&\t\r]+/)
       .map(date => date.trim())
-      .filter(date => date && date.length > 5);
+      .filter(date => date && date.length > 5 && /\d/.test(date));
     
     if (splitDates.length > 0) {
       return [...new Set(splitDates)];
     }
     
-    return [dateString.trim()];
+    if (dateString.trim().length > 5 && /\d/.test(dateString)) {
+      return [dateString.trim()];
+    }
   }
   
   return [];
@@ -917,7 +919,9 @@ export const formatCategoryAllotmentDates = (dates: string | string[]): string =
     try {
       const parsed = JSON.parse(dates);
       if (Array.isArray(parsed)) {
-        const cleanDates = parsed.filter(date => date && date.toString().trim().length > 0);
+        const cleanDates = parsed
+          .filter(date => date && date.toString().trim().length > 0)
+          .map(date => date.toString().trim());
         return JSON.stringify([...new Set(cleanDates)]); 
       }
       return JSON.stringify([dates]);
@@ -926,14 +930,14 @@ export const formatCategoryAllotmentDates = (dates: string | string[]): string =
         return '[]';
       }
       
-      const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
+      const datePattern = /(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/g;
       const foundDates = dates.match(datePattern);
       
       if (foundDates && foundDates.length > 0) {
         return JSON.stringify([...new Set(foundDates)]);
       }
       
-      const splitDates = dates.split(/[\s,;|\n&]+/)
+      const splitDates = dates.split(/[,;|\n&\s]+/)
         .map(date => date.trim())
         .filter(date => date && date.length > 5);
       
@@ -968,7 +972,7 @@ export const createLowMedicalTable = (): void => {
         name TEXT NOT NULL,
         disease_reason TEXT DEFAULT '-',
         medical_category TEXT DEFAULT '-',
-        category_allotment_date TEXT DEFAULT '[]',  -- Changed default to empty JSON array
+        category_allotment_date TEXT DEFAULT '[]', 
         last_medical_board_date TEXT DEFAULT '-',
         medical_board_due_date TEXT DEFAULT '-',
         remarks TEXT DEFAULT '-',
@@ -987,10 +991,9 @@ export const insertLowMedicalRecord = (
   record: Omit<LowMedicalRecord, 'id' | 'created_at' | 'updated_at'>
 ): number => {
   try {
-    const formattedRecord = {
-      ...record,
-      category_allotment_date: formatCategoryAllotmentDates(record.category_allotment_date)
-    };
+    const categoryDates = typeof record.category_allotment_date === 'string' 
+    ? record.category_allotment_date 
+    : JSON.stringify(record.category_allotment_date || []);
     
     const result = db.runSync(
       `INSERT INTO low_medical_records (
@@ -999,17 +1002,17 @@ export const insertLowMedicalRecord = (
         medical_board_due_date, remarks, status
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        formattedRecord.serial_no,
-        formattedRecord.personnel_id,
-        sanitizeValue(formattedRecord.rank),
-        formattedRecord.name,
-        sanitizeValue(formattedRecord.disease_reason),
-        sanitizeValue(formattedRecord.medical_category),
-        formattedRecord.category_allotment_date,
-        sanitizeValue(formattedRecord.last_medical_board_date),
-        sanitizeValue(formattedRecord.medical_board_due_date),
-        sanitizeValue(formattedRecord.remarks),
-        formattedRecord.status || 'active'
+        record.serial_no,
+        record.personnel_id,
+        sanitizeValue(record.rank),
+        record.name,
+        sanitizeValue(record.disease_reason),
+        sanitizeValue(record.medical_category),
+        categoryDates,
+        sanitizeValue(record.last_medical_board_date),
+        sanitizeValue(record.medical_board_due_date),
+        sanitizeValue(record.remarks),
+        record.status || 'active'
       ]
     );
     return result.lastInsertRowId;

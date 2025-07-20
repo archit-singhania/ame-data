@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -179,10 +179,16 @@ const PrescriptionManagement: React.FC = () => {
 
         await createPrescriptionTables();
         
-        // debugPrintTables();
-
         const records = await getAMERecords();
-        setPatients(Array.isArray(records) ? records : []);
+        const sortedRecords = Array.isArray(records) 
+          ? records.sort((a, b) => {
+              const serialA = parseInt(String(a.s_no)) || 0;
+              const serialB = parseInt(String(b.s_no)) || 0;
+              return serialA - serialB;
+            })
+          : [];
+        
+        setPatients(sortedRecords);
 
       } catch (error) {
         console.error('Error loading data:', error);
@@ -196,17 +202,26 @@ const PrescriptionManagement: React.FC = () => {
     loadData();
   }, [getCurrentDoctor]);
 
-  const filteredPatients = patients.filter(patient => {
-    if (!searchTerm.trim()) return true;
-    
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      patient.full_name?.toLowerCase().includes(searchLower) ||
-      patient.personnel_id?.toLowerCase().includes(searchLower) ||
-      patient.rank?.toLowerCase().includes(searchLower) ||
-      patient.unit?.toLowerCase().includes(searchLower)
-    );
-  });
+  const sortedAndFilteredPatients = useMemo(() => {
+    return patients
+      .filter(patient => {
+        if (!searchTerm.trim()) return true;
+        
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          patient.full_name?.toLowerCase().includes(searchLower) ||
+          patient.personnel_id?.toLowerCase().includes(searchLower) ||
+          patient.rank?.toLowerCase().includes(searchLower) ||
+          patient.unit?.toLowerCase().includes(searchLower)
+        );
+      })
+      .sort((a, b) => {
+        const serialA = parseInt(String(a.s_no)) || 0;
+        const serialB = parseInt(String(b.s_no)) || 0;
+        return serialA - serialB;
+      });
+  }, [patients, searchTerm]);
+
 
   const loadPatientHistory = async (personnelId: string) => {
     try {
@@ -387,7 +402,7 @@ const PrescriptionManagement: React.FC = () => {
             >
               <Icon name="loading" size={48} color="#667eea" />
             </LinearGradient>
-            <Text style={styles.loadingText}>Loading patients...</Text>
+            <Text style={styles.loadingText}>Loading Personnel...</Text>
           </View>
         </LinearGradient>
       </Animated.View>
@@ -456,13 +471,13 @@ const PrescriptionManagement: React.FC = () => {
             style={styles.patientCountBadge}
           >
             <Text style={styles.patientCount}>
-              {filteredPatients.length} patients found
+              {sortedAndFilteredPatients.length} patients found
             </Text>
           </LinearGradient>
         </View>
 
         <FlatList
-          data={filteredPatients}
+          data={sortedAndFilteredPatients}
           keyExtractor={(item) => item.id?.toString() || item.personnel_id}
           renderItem={({ item }) => (
             <View style={styles.gridItem}>
@@ -554,9 +569,21 @@ const PrescriptionManagement: React.FC = () => {
               <Icon name="arrow-left" size={getResponsiveDimensions().iconSize.medium} color="#ffffff" />
             </LinearGradient>
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { fontSize: getResponsiveDimensions().fontSize.large }]}>
-            Details for New Prescription Issuance
-          </Text>
+          <View style={styles.headerTitleContainer}>
+            <Text 
+              style={[
+                styles.headerTitle, 
+                { 
+                  fontSize: getResponsiveDimensions().isSmallScreen ? 14 : getResponsiveDimensions().fontSize.medium,
+                  textAlign: 'center',
+                  flexShrink: 1
+                }
+              ]}
+              numberOfLines={getResponsiveDimensions().isSmallScreen ? 2 : 1}
+            >
+              {getResponsiveDimensions().isSmallScreen ? "New Prescription" : "Details for New Prescription Issuance"}
+            </Text>
+          </View>
           <TouchableOpacity
             onPress={() => setShowHistory(true)}
             style={styles.headerButton}
@@ -699,8 +726,10 @@ const PrescriptionManagement: React.FC = () => {
                     colors={premiumGradients.success}
                     style={styles.addButton}
                   >
-                    <Icon name="plus" size={16} color="#ffffff" />
-                    <Text style={styles.addButtonText}>Add</Text>
+                    <Icon name="plus" size={getResponsiveDimensions().iconSize.small} color="#ffffff" />
+                    {!getResponsiveDimensions().isSmallScreen && (
+                      <Text style={styles.addButtonText}>Add</Text>
+                    )}
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -1255,6 +1284,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: 10,
+    marginHorizontal: 8,
+    justifyContent: 'center',
   },
   headerTitle: {
     color: '#ffffff',
@@ -1533,17 +1564,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0.1,
   },
+  addButtonContainer: {
+    marginLeft: 'auto',
+  },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    paddingHorizontal: getResponsiveDimensions().isSmallScreen ? 8 : 12,
+    paddingVertical: getResponsiveDimensions().isSmallScreen ? 6 : 8,
+    borderRadius: getResponsiveDimensions().isSmallScreen ? 16 : 20,
+    minWidth: getResponsiveDimensions().isSmallScreen ? 32 : 'auto',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    color: '#ffffff',
+    fontSize: getResponsiveDimensions().fontSize.small,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   saveButton: {
     flexDirection: 'row',
@@ -1709,15 +1746,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 15,
-  },
-  addButtonContainer: {
-    marginBottom: 15,
-  },
-  addButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 5,
   },
   textArea: {
     fontSize: 16,

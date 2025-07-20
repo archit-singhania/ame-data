@@ -48,7 +48,10 @@ export default function LoginAdmin({ navigation }: any) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [securityCode, setSecurityCode] = useState('');
+  const [securityCodeError, setSecurityCodeError] = useState('');
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(100)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -57,6 +60,47 @@ export default function LoginAdmin({ navigation }: any) {
   const particleAnims = useRef(Array.from({ length: 8 }, () => new Animated.Value(0))).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const modalScaleAnim = useRef(new Animated.Value(0)).current;
+  
+  const handleSecurityCodeSubmit = () => {
+    const alphanumericRegex = /^[a-zA-Z0-9]{8}$/;
+
+    if (!alphanumericRegex.test(securityCode)) {
+      setSecurityCodeError('Security code must be 8 alphanumeric characters');
+      return;
+    }
+
+    if (securityCode === '139BnBSF') {
+      setShowSecurityModal(false);
+      setSecurityCode('');
+      setSecurityCodeError('');
+      navigation.navigate('Register');
+    } else {
+      setSecurityCodeError('Invalid security code');
+    }
+  };
+
+  const openSecurityModal = () => {
+    setShowSecurityModal(true);
+    Animated.spring(modalScaleAnim, {
+      toValue: 1,
+      tension: 80,
+      friction: 6,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeSecurityModal = () => {
+    Animated.timing(modalScaleAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowSecurityModal(false);
+      setSecurityCode('');
+      setSecurityCodeError('');
+    });
+  };
 
   useEffect(() => {
     try {
@@ -516,7 +560,7 @@ export default function LoginAdmin({ navigation }: any) {
                       </View>
                       
                       <TouchableOpacity 
-                        onPress={() => navigation.navigate('Register')}
+                        onPress={openSecurityModal}
                         disabled={loading}
                         style={styles.registerWrapper}
                         activeOpacity={0.7}
@@ -536,12 +580,188 @@ export default function LoginAdmin({ navigation }: any) {
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
+        {showSecurityModal && (
+          <View style={styles.modalOverlay}>
+            <BlurView
+              intensity={80}
+              tint="dark"
+              style={styles.modalBlur}
+            >
+              <Animated.View
+                style={[
+                  styles.securityModal,
+                  {
+                    transform: [{ scale: modalScaleAnim }]
+                  }
+                ]}
+              >
+                <View style={styles.modalHeader}>
+                  <Ionicons
+                    name="shield-checkmark"
+                    size={responsive.getIconSize(40)}
+                    color="#C41E3A"
+                  />
+                  <Text style={styles.modalTitle}>Security Verification</Text>
+                  <Text style={styles.modalSubtitle}>Enter 8-digit security code</Text>
+                </View>
+                
+                <View style={styles.modalContent}>
+                  <TextInput
+                    label="Security Code"
+                    mode="outlined"
+                    value={securityCode}
+                    onChangeText={(text) => {
+                      const alphanumericText = text.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+                      setSecurityCode(alphanumericText);
+                      setSecurityCodeError('');
+                    }}
+                    style={styles.securityInput}
+                    keyboardType="numeric"
+                    maxLength={8}
+                    autoFocus={true}
+                    error={!!securityCodeError}
+                    left={<TextInput.Icon icon="key" />}
+                    theme={{
+                      colors: {
+                        primary: '#C41E3A',
+                        background: 'rgba(255, 255, 255, 0.95)',
+                        outline: 'rgba(102, 126, 234, 0.3)',
+                        onSurfaceVariant: '#000000',
+                        onSurface: '#000000',
+                        error: '#FF5252',
+                      }
+                    }}
+                  />
+                  {securityCodeError ? (
+                    <Text style={styles.errorText}>{securityCodeError}</Text>
+                  ) : null}
+                  
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      onPress={closeSecurityModal}
+                      style={styles.cancelButton}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    
+                    <LinearGradient
+                      colors={['#8B0000', '#C41E3A']}
+                      style={styles.verifyButtonGradient}
+                    >
+                      <TouchableOpacity
+                        onPress={handleSecurityCodeSubmit}
+                        style={styles.verifyButton}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.verifyButtonText}>Verify</Text>
+                      </TouchableOpacity>
+                    </LinearGradient>
+                  </View>
+                </View>
+              </Animated.View>
+            </BlurView>
+          </View>
+        )}
       </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+    borderRadius: responsive.getSize(25)
+  },
+  modalBlur: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: responsive.getSpacing(20),
+  },
+  securityModal: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: responsive.getSize(20),
+    padding: responsive.getSpacing(25),
+    width: '90%',
+    maxWidth: responsive.getCardWidth() * 0.9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(196, 30, 58, 0.3)',
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: responsive.getSpacing(20),
+  },
+  modalTitle: {
+    fontSize: responsive.getFontSize(22),
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginTop: responsive.getSpacing(10),
+    marginBottom: responsive.getSpacing(5),
+  },
+  modalSubtitle: {
+    fontSize: responsive.getFontSize(14),
+    color: '#666',
+    textAlign: 'center',
+  },
+  modalContent: {
+    gap: responsive.getSpacing(15),
+  },
+  securityInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    fontSize: responsive.getFontSize(18),
+    fontWeight: '600',
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#FF5252',
+    fontSize: responsive.getFontSize(12),
+    textAlign: 'center',
+    marginTop: responsive.getSpacing(-10),
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: responsive.getSpacing(10),
+    marginTop: responsive.getSpacing(10),
+  },
+  cancelButton: {
+    flex: 1,
+    padding: responsive.getSpacing(12),
+    borderRadius: responsive.getSize(10),
+    backgroundColor: 'rgba(108, 117, 125, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(108, 117, 125, 0.3)',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#6c757d',
+    fontSize: responsive.getFontSize(14),
+    fontWeight: '600',
+  },
+  verifyButtonGradient: {
+    flex: 1,
+    borderRadius: responsive.getSize(10),
+  },
+  verifyButton: {
+    padding: responsive.getSpacing(12),
+    alignItems: 'center',
+  },
+  verifyButtonText: {
+    color: 'white',
+    fontSize: responsive.getFontSize(14),
+    fontWeight: '700',
+  },
   container: {
     flex: 1,
     backgroundColor: 'transparent',

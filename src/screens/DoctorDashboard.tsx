@@ -232,7 +232,7 @@ export default function DashboardDoctor({ navigation }: any) {
       description: 'Generate and review medical reports, activity logs, and examination summaries.',
       icon: '📊',
       iconBg: '#A8E6CF',
-      onPress: () => navigation.navigate('ReportsDetailScreen'),
+      onPress: () => navigation.navigate('ReportsDetailScreen_DOC'),
       gradient: ['#42275a', '#734b6d'] as const,
       shadowColor: '#A8E6CF',
     },

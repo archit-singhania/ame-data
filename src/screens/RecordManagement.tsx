@@ -39,8 +39,6 @@ import {
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
-import { MotiView, MotiText } from 'moti';
 
 type RecordManagementRouteProp = RouteProp<RootStackParamList, 'RecordManagement'>;
 type RecordManagementNavProp = StackNavigationProp<RootStackParamList, 'RecordManagement'>;
@@ -109,6 +107,11 @@ const RecordManagement: React.FC<Props> = ({ route, navigation }) => {
   const isUltraWide = width > 1400;
   const cardWidth = isUltraWide ? (width - 120) / 4 : isLargeScreen ? (width - 100) / 3 : isTablet ? (width - 80) / 2 : width - 40;
   
+  const tabWidth = isUltraWide ? width / 5 : isLargeScreen ? width / 4 : isTablet ? width / 3 : width / 2.5;
+  const tabHeight = isTablet ? 70 : 60;
+  const tabIconSize = isTablet ? 24 : 20;
+  const tabTextSize = isTablet ? 16 : 14;
+
   useEffect(() => {
     if (activeTab === 'users' && formData.rank && formData.regt_id_irla_no) {
       const isOfficer = officerRanks.includes(formData.rank);
@@ -161,11 +164,21 @@ const RecordManagement: React.FC<Props> = ({ route, navigation }) => {
           break;
         case 'ame':
           const ameData = await getAMERecords();
-          setAMERecords(ameData);
+          const sortedAMEData = ameData.sort((a, b) => {
+            const serialA = parseInt(a.s_no?.toString()) || 0;
+            const serialB = parseInt(b.s_no?.toString()) || 0;
+            return serialA - serialB;
+          });
+          setAMERecords(sortedAMEData);
           break;
         case 'lowMedical':
           const lowMedicalData = await getLowMedicalRecords();
-          setLowMedicalRecords(lowMedicalData);
+          const sortedLowMedicalData = lowMedicalData.sort((a, b) => {
+            const serialA = parseInt(a.serial_no?.toString()) || 0;
+            const serialB = parseInt(b.serial_no?.toString()) || 0;
+            return serialA - serialB;
+          });
+          setLowMedicalRecords(sortedLowMedicalData);
           break;
       }
     } catch (error) {
@@ -349,28 +362,45 @@ const RecordManagement: React.FC<Props> = ({ route, navigation }) => {
 
   const filteredData = () => {
     const query = searchQuery.toLowerCase();
+    let filtered: any[];
+    
     switch (activeTab) {
       case 'users':
-        return users.filter(user => 
+        filtered = users.filter(user => 
           user.full_name.toLowerCase().includes(query) ||
           user.identity.toLowerCase().includes(query) ||
           user.rank.toLowerCase().includes(query)
         );
+        break;
       case 'ame':
-        return ameRecords.filter(record => 
+        filtered = ameRecords.filter(record => 
           record.full_name.toLowerCase().includes(query) ||
           record.personnel_id.toLowerCase().includes(query) ||
           record.rank.toLowerCase().includes(query)
         );
+        filtered = filtered.sort((a, b) => {
+          const serialA = parseInt(a.s_no) || 0;
+          const serialB = parseInt(b.s_no) || 0;
+          return serialA - serialB;
+        });
+        break;
       case 'lowMedical':
-        return lowMedicalRecords.filter(record => 
+        filtered = lowMedicalRecords.filter(record => 
           record.name.toLowerCase().includes(query) ||
           record.personnel_id.toLowerCase().includes(query) ||
           record.rank.toLowerCase().includes(query)
         );
+        filtered = filtered.sort((a, b) => {
+          const serialA = parseInt(a.serial_no) || 0;
+          const serialB = parseInt(b.serial_no) || 0;
+          return serialA - serialB;
+        });
+        break;
       default:
-        return [];
+        filtered = [];
     }
+    
+    return filtered;
   };
 
   const renderUserCard = ({ item, index }: { item: User, index: number }) => {
@@ -962,11 +992,14 @@ const RecordManagement: React.FC<Props> = ({ route, navigation }) => {
         </View>
       </LinearGradient>
 
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, { height: tabHeight + 20 }]}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabScrollContent}
+          contentContainerStyle={[
+            styles.tabScrollContent,
+            { paddingHorizontal: isTablet ? 20 : 15 }
+          ]}
         >
           {[
             { key: 'users', label: '👥 Users', icon: '👥' },
@@ -977,7 +1010,12 @@ const RecordManagement: React.FC<Props> = ({ route, navigation }) => {
               key={tab.key}
               style={[
                 styles.tabButton,
-                activeTab === tab.key && styles.activeTab
+                activeTab === tab.key && styles.activeTab,
+                { 
+                  width: tabWidth,
+                  height: tabHeight,
+                  marginRight: isTablet ? 15 : 10
+                }
               ]}
               onPress={() => setActiveTab(tab.key as TabType)}
               activeOpacity={0.8}
@@ -987,14 +1025,15 @@ const RecordManagement: React.FC<Props> = ({ route, navigation }) => {
                   ['#4CAF50', '#45a049'] : 
                   ['#f5f5f5', '#e0e0e0']
                 }
-                style={styles.tabButtonGradient}
+                style={[styles.tabButtonGradient, { height: tabHeight }]}
               >
-                <Text style={styles.tabIcon}>{tab.icon}</Text>
+                <Text style={[styles.tabIcon, { fontSize: tabIconSize }]}>{tab.icon}</Text>
                 <Text style={[
                   styles.tabText,
-                  activeTab === tab.key && styles.activeTabText
+                  activeTab === tab.key && styles.activeTabText,
+                  { fontSize: tabTextSize }
                 ]}>
-                  {tab.label.split(' ')[1]}
+                  {isTablet ? tab.label : tab.label.split(' ')[1]}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -1133,6 +1172,46 @@ const RecordManagement: React.FC<Props> = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  tabContainer: {
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  tabScrollContent: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  tabButton: {
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  tabButtonGradient: {
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  tabIcon: {
+    marginBottom: 4,
+  },
+  tabText: {
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+  },
+  activeTabText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
   passwordContainer: {
     position: 'relative',
     width: '100%',
@@ -1227,42 +1306,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
   },
-  tabContainer: {
-    paddingVertical: 15,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  tabScrollContent: {
-    paddingHorizontal: 15,
-  },
-  tabButton: {
-    marginHorizontal: 5,
-    borderRadius: 25,
-    overflow: 'hidden',
-  },
-  tabButtonGradient: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: 120,
-    justifyContent: 'center',
-  },
   activeTab: {
     transform: [{ scale: 1.05 }],
-  },
-  tabIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  activeTabText: {
-    color: '#ffffff',
   },
   controlsContainer: {
     flexDirection: 'row',

@@ -16,6 +16,7 @@ export type RootStackParamList = {
     doctorId?: string;
     doctorname?: string;
   } | undefined;
-  ReportsDetailScreen: undefined;
+  ReportsDetailScreen_ADM: undefined;
+  ReportsDetailScreen_DOC: undefined;
   RecordManagement: { adminId?: number };
 };

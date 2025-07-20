@@ -138,7 +138,12 @@ export default function LMCRecords() {
   const loadLowMedicalRecords = async () => {
     try {
       const records = await getLowMedicalRecords();
-      setLowMedicalRecords(records);
+      const sortedRecords = records.sort((a, b) => {
+        const serialA = Number(a.serial_no) || 0;
+        const serialB = Number(b.serial_no) || 0;
+        return serialA - serialB;
+      });
+      setLowMedicalRecords(sortedRecords);
     } catch (error) {
       console.error('Error loading Low Medical records:', error);
       Alert.alert('Error', 'Failed to load Low Medical records');
@@ -270,6 +275,56 @@ export default function LMCRecords() {
     }
   };
 
+  const processDateField = (cellData: any) => {
+    if (!cellData || cellData === '') return [];
+    
+    let rawText = '';
+    if (cellData.w) {
+      rawText = cellData.w.toString();
+    } else if (cellData.v) {
+      rawText = cellData.v.toString();
+    } else {
+      return [];
+    }
+    
+    const cleanText = rawText.replace(/\*\*/g, '').trim(); 
+    const allDates = new Set<string>();
+    
+    const datePatterns = [
+      /(\d{1,2}\.\d{1,2}\.\d{2,4})/g,  
+      /(\d{1,2}\/\d{1,2}\/\d{2,4})/g,  
+      /(\d{1,2}-\d{1,2}-\d{2,4})/g,    
+      /(\d{2,4}-\d{1,2}-\d{1,2})/g    
+    ];
+    
+    for (const pattern of datePatterns) {
+      let match;
+      while ((match = pattern.exec(cleanText)) !== null) {
+        const dateStr = match[1].trim();
+        if (dateStr.length >= 6) {
+          allDates.add(dateStr);
+        }
+      }
+      pattern.lastIndex = 0; 
+    }
+    
+    if (allDates.size === 0) {
+      const splitParts = cleanText.split(/[\s,;|&\n\r]+/);
+      for (const part of splitParts) {
+        const trimmed = part.trim();
+        if (trimmed.length >= 6 && /\d+[.\/-]\d+[.\/-]\d+/.test(trimmed)) {
+          allDates.add(trimmed);
+        }
+      }
+    }
+    
+    const result = Array.from(allDates).filter((date): date is string => 
+      typeof date === 'string' && date.length >= 6
+    );
+    
+    return result;
+  };
+
   const uploadExcelFile = async (file: any) => {
     try {
       setLoading(true);
@@ -293,91 +348,67 @@ export default function LMCRecords() {
         fileReader.onerror = reject;
         fileReader.readAsDataURL(blob);
       });
-      
+
       const workbook = XLSX.read(fileData, { type: 'base64' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const range = XLSX.utils.decode_range(worksheet['!ref'] || '');
       const jsonData: any[] = [];
 
+      const categoryDatesMap: { [key: number]: string[] } = {};
+      
       for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-        const row: any = {};
-        const getCell = (C: number) => worksheet[XLSX.utils.encode_cell({ r: R, c: C })];
-
-        row['SL NO'] = getCell(0)?.v ?? '';
-        row['IRLA NO/REGT NO'] = getCell(1)?.v ?? '';
-        row['RANK'] = getCell(2)?.v ?? '';
-        row['NAME'] = getCell(3)?.v ?? '';
-        row['DISEASE/REASON'] = getCell(4)?.v ?? '';
-        row['MEDICAL CATEGORY'] = getCell(5)?.v ?? '';
-
-        const rawDatesRaw = getCell(6)?.w?.toString() ?? getCell(6)?.v?.toString() ?? '';
-        let processedDates: string[] = [];
-
-        if (rawDatesRaw && rawDatesRaw.trim()) {
-          const lines = rawDatesRaw.split(/[\r\n\u000a\u000b\u000c\u000d\u0085\u2028\u2029,;|&]+/);
-          
-          for (const line of lines) {
-            const cleanLine = line.trim();
-            if (!cleanLine) continue;
-            
-            const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
-            const foundDates = cleanLine.match(datePattern);
-            
-            if (foundDates && foundDates.length > 0) {
-              processedDates.push(...foundDates);
-            } else {
-              const splitDates = cleanLine
-                .split(/[\s,;|&]+/)
-                .map((d: string) => d.trim())
-                .filter((d: string) => d && d.length > 5);
+        const categoryCell = worksheet[XLSX.utils.encode_cell({ r: R, c: 6 })];
+        if (categoryCell && categoryCell.v) {
+          const dateValue = categoryCell.v.toString().trim();
+          if (dateValue && dateValue.length >= 6) {
+            let recordRow = R;
+            while (recordRow >= range.s.r + 1) {
+              const nameCell = worksheet[XLSX.utils.encode_cell({ r: recordRow, c: 3 })]; 
+              const idCell = worksheet[XLSX.utils.encode_cell({ r: recordRow, c: 1 })]; 
               
-              if (splitDates.length > 0) {
-                processedDates.push(...splitDates);
-              } else if (cleanLine.length > 5) {
-                processedDates.push(cleanLine);
+              if (nameCell && nameCell.v && idCell && idCell.v) {
+                if (!categoryDatesMap[recordRow]) {
+                  categoryDatesMap[recordRow] = [];
+                }
+                categoryDatesMap[recordRow].push(dateValue);
+                break;
               }
+              recordRow--;
             }
           }
         }
+      }
 
-        const finalDates = [...new Set(processedDates.filter(d => d && d.trim().length > 0))];
-        row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION'] = finalDates;
-
-        const categoryDates = Array.isArray(row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION'])
-          ? row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION']
-          : [row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION']];
-
-        let parsedCategoryDates: string[] = [];
-
-        if (categoryDates && categoryDates.length > 0) {
-          categoryDates.forEach((dateItem: any) => {
-            const dateString = dateItem?.toString().trim() || '';
-            if (dateString && dateString !== '' && dateString !== 'undefined' && dateString !== 'null') {
-              if (dateString.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
-                parsedCategoryDates.push(dateString);
-              } else {
-                const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
-                const foundDates = dateString.match(datePattern);
-                
-                if (foundDates && foundDates.length > 0) {
-                  parsedCategoryDates.push(...foundDates);
-                } else {
-                  const splitDates = dateString.split(/[\s,;|\n&]+/)
-                    .map((date: string) => date.trim())
-                    .filter((date: string) => date && date.length > 5);
-                  
-                  if (splitDates.length > 0) {
-                    parsedCategoryDates.push(...splitDates);
-                  } else if (dateString.length > 5) {
-                    parsedCategoryDates.push(dateString);
-                  }
-                }
-              }
-            }
-          });
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        const getCell = (C: number) => worksheet[XLSX.utils.encode_cell({ r: R, c: C })];
+        
+        const nameCell = getCell(3);
+        const idCell = getCell(1);
+        
+        if (!nameCell || !nameCell.v || !idCell || !idCell.v) {
+          continue;
         }
 
+        const row: any = {};
+        row['SL NO'] = getCell(0)?.v ?? '';
+        row['IRLA NO/REGT NO'] = idCell.v;
+        row['RANK'] = getCell(2)?.v ?? '';
+        row['NAME'] = nameCell.v;
+        row['DISEASE/REASON'] = getCell(4)?.v ?? '';
+        row['MEDICAL CATEGORY'] = getCell(5)?.v ?? '';
+
+        const recordDates = categoryDatesMap[R] || [];
+        
+        const currentRowDate = getCell(6)?.v;
+        if (currentRowDate && currentRowDate.toString().trim()) {
+          const dateStr = currentRowDate.toString().trim();
+          if (dateStr.length >= 6 && !recordDates.includes(dateStr)) {
+            recordDates.push(dateStr);
+          }
+        }
+
+        row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION'] = recordDates;
         row['LAST MEDICAL BOARD APPEAR DATE'] = getCell(7)?.v ?? '';
         row['MEDICAL BOARD DUE DATE'] = getCell(8)?.v ?? '';
         row['REMARKS'] = getCell(9)?.v ?? '';
@@ -385,50 +416,22 @@ export default function LMCRecords() {
         jsonData.push(row);
       }
 
-      setUploadProgress(30);
-
       if (jsonData.length === 0) {
         throw new Error('No data found in the Excel file');
       }
 
-      const validatedData = [];
+      const validatedData: any[] = [];
+
       for (let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i] as any;
-      
+        const row = jsonData[i];
+
         if (!row['IRLA NO/REGT NO'] || !row['NAME']) {
           continue;
         }
 
         const categoryDates = Array.isArray(row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION'])
           ? row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION']
-          : [row['DATE OF CATEGORY ALLOTMENT & FURTHER CATEGORIZATION']];
-        let parsedCategoryDates: string[] = [];
-
-        if (categoryDates && categoryDates.length > 0) {
-          categoryDates.forEach((dateItem: any) => {
-            const dateString = dateItem?.toString().trim() || '';
-            if (dateString && dateString !== '' && dateString !== 'undefined' && dateString !== 'null') {
-              const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
-              const foundDates = dateString.match(datePattern);
-              
-              if (foundDates && foundDates.length > 0) {
-                parsedCategoryDates.push(...foundDates);
-              } else {
-                const splitDates = dateString.split(/[,;|\n&\s]+/)
-                  .map((date: string) => date.trim())
-                  .filter((date: string) => date && date.length > 5);
-                
-                if (splitDates.length > 0) {
-                  parsedCategoryDates.push(...splitDates);
-                } else {
-                  parsedCategoryDates.push(dateString);
-                }
-              }
-            }
-          });
-        }
-
-        parsedCategoryDates = [...new Set(parsedCategoryDates)];
+          : [];
 
         validatedData.push({
           serial_no: row['SL NO'] || (i + 1),
@@ -437,15 +440,21 @@ export default function LMCRecords() {
           name: row['NAME'] || '',
           disease_reason: row['DISEASE/REASON'] || '',
           medical_category: row['MEDICAL CATEGORY'] || '',
-          category_allotment_date: parsedCategoryDates.length > 0 ? JSON.stringify(parsedCategoryDates) : '[]',
+          category_allotment_date: JSON.stringify(categoryDates),
           last_medical_board_date: row['LAST MEDICAL BOARD APPEAR DATE'] || '',
           medical_board_due_date: row['MEDICAL BOARD DUE DATE'] || '',
           remarks: row['REMARKS'] || '',
-          status: 'active', 
+          status: 'active',
         });
-
+        
         setUploadProgress(30 + (i / jsonData.length) * 50);
       }
+
+      validatedData.sort((a, b) => {
+        const serialA = parseInt(a.serial_no) || 0;
+        const serialB = parseInt(b.serial_no) || 0;
+        return serialA - serialB;
+      });
 
       let insertedCount = 0;
       for (const record of validatedData) {
@@ -458,7 +467,6 @@ export default function LMCRecords() {
       }
 
       setUploadProgress(100);
-
       await loadLowMedicalRecords();
 
       setTimeout(() => {
@@ -506,58 +514,49 @@ export default function LMCRecords() {
       try {
         const parsed = JSON.parse(dateString);
         if (Array.isArray(parsed)) {
-          dates = parsed;
-        } else if (typeof parsed === 'string') {
-          dates = [parsed];
+          dates = parsed.filter(d => d && d.toString().trim().length > 0);
+        } else if (typeof parsed === 'string' && parsed.trim()) {
+          dates = [parsed.trim()];
         }
       } catch {
-        const datePattern = /(\d{1,2}\.\d{1,2}\.\d{2,4})/g;
-        const foundDates = dateString.match(datePattern);
+        const allDatePatterns = [
+          /(\d{1,2}\.\d{1,2}\.\d{4})/g,
+          /(\d{1,2}\.\d{1,2}\.\d{2})/g,
+          /(\d{1,2}\/\d{1,2}\/\d{4})/g,
+          /(\d{1,2}\/\d{1,2}\/\d{2})/g,
+          /(\d{1,2}-\d{1,2}-\d{4})/g,
+          /(\d{1,2}-\d{1,2}-\d{2})/g,
+          /(\d{4}-\d{1,2}-\d{1,2})/g
+        ];
         
-        if (foundDates && foundDates.length > 0) {
-          dates = foundDates;
-        } else {
+        const foundDates = new Set();
+        for (const pattern of allDatePatterns) {
+          let match;
+          while ((match = pattern.exec(dateString)) !== null) {
+            foundDates.add(match[1]);
+          }
+          pattern.lastIndex = 0;
+        }
+        
+        dates = Array.from(foundDates) as string[];
+        
+        if (dates.length === 0) {
           dates = dateString.split(/[,;|\n&\s]+/)
             .map(date => date.trim())
-            .filter(date => date && date.length > 5);
+            .filter(date => date && date.length >= 6);
         }
       }
 
-      const validDates = dates
-        .filter(date => date != null && date.toString().trim().length > 0)
-        .map(date => date.toString().trim())
-        .filter(date => date !== 'undefined' && date !== 'null' && date !== '' && date.length > 5);
-
-      if (validDates.length === 0) {
+      if (dates.length === 0) {
         return <Text style={styles.fieldValue}>No valid dates found</Text>;
       }
 
-    const sortedDates = validDates.sort((a, b) => {
-      try {
-        const parseDate = (dateStr: string) => {
-          const parts = dateStr.split('.');
-          if (parts.length === 3) {
-            const day = parseInt(parts[0]);
-            const month = parseInt(parts[1]) - 1; 
-            const year = parseInt(parts[2]);
-            const fullYear = year < 100 ? (year < 50 ? 2000 + year : 1900 + year) : year;
-            return new Date(fullYear, month, day);
-          }
-          return new Date(dateStr);
-        };
-        
-        const dateA = parseDate(a);
-        const dateB = parseDate(b);
-        return dateA.getTime() - dateB.getTime();
-      } catch {
-        return a.localeCompare(b);
-      }
-    });
+      const uniqueDates = [...new Set(dates)];
 
       return (
         <View style={styles.datesContainer}>
           <View style={styles.datesGrid}>
-            {sortedDates.map((date, index) => (
+            {uniqueDates.map((date, index) => (
               <View key={`date-${index}-${date}`} style={styles.dateChip}>
                 <Text style={styles.dateChipText}>{date}</Text>
               </View>
@@ -566,8 +565,8 @@ export default function LMCRecords() {
         </View>
       );
     } catch (error) {
-      console.error('Error rendering category dates:', error, 'Input:', dateString);
-      return <Text style={styles.fieldValue}>{dateString || 'Error processing dates'}</Text>;
+      console.error('Error rendering category dates:', error);
+      return <Text style={styles.fieldValue}>Error processing dates</Text>;
     }
   };
 
@@ -575,72 +574,63 @@ export default function LMCRecords() {
     <View style={styles.recordItem}>
       <View style={styles.recordHeader}>
         <Text style={styles.recordTitle}>{item.name}</Text>
-        <Text style={styles.recordId}>{item.personnel_id}</Text>
+        <Text style={styles.recordId}>
+          {['COMDT', '2IC', 'DC', 'AC'].includes(item.rank?.toUpperCase())
+            ? `IRLA No: ${item.personnel_id}`
+            : `Regt ID: ${item.personnel_id}`}
+        </Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.recordScroll}>
-        <View style={styles.recordDetails}>
+
+      <View style={styles.recordDetailsWrapper}>
+        <View style={styles.recordFieldRow}>
           <View style={styles.recordField}>
             <Text style={styles.fieldLabel}>SL NO:</Text>
             <Text style={styles.fieldValue}>{item.serial_no}</Text>
           </View>
           <View style={styles.recordField}>
             <Text style={styles.fieldLabel}>RANK:</Text>
-            <Text style={styles.fieldValue}>{item.rank}</Text>
+            <Text style={[styles.fieldValue, styles.highlightValue]}>{item.rank}</Text>
           </View>
-          <View style={styles.recordField}>
-            <Text style={styles.fieldLabel}>DISEASE/REASON:</Text>
-            <Text style={styles.fieldValue} numberOfLines={0}>{item.disease_reason}</Text>
+        </View>
+
+        <View style={styles.recordField}>
+          <Text style={styles.fieldLabel}>DISEASE / REASON:</Text>
+          <Text style={styles.fieldValue}>{item.disease_reason}</Text>
+        </View>
+
+        <View style={styles.recordField}>
+          <Text style={styles.fieldLabel}>MEDICAL CATEGORY:</Text>
+          <View style={[styles.categoryBadge, { backgroundColor: '#FF5722' }]}>
+            <Text style={styles.categoryText}>{item.medical_category}</Text>
           </View>
+        </View>
+
+        <View style={styles.recordField}>
+          <Text style={styles.fieldLabel}>CATEGORY ALLOTMENT DATES:</Text>
+          {renderCategoryDates(item.category_allotment_dates || item.category_allotment_date)}
+        </View>
+
+        <View style={styles.recordFieldRow}>
           <View style={styles.recordField}>
-            <Text style={styles.fieldLabel}>MEDICAL CATEGORY:</Text>
-            <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(item.medical_category) }]}>
-              <Text style={styles.categoryText}>{item.medical_category}</Text>
-            </View>
-          </View>
-          <View style={styles.recordField}>
-            <Text style={styles.fieldLabel}>CATEGORY ALLOTMENT DATES:</Text>
-            {renderCategoryDates(item.category_allotment_date)}
-          </View>
-          <View style={styles.recordField}>
-            <Text style={styles.fieldLabel}>LAST MEDICAL BOARD DATE:</Text>
+            <Text style={styles.fieldLabel}>LAST MEDICAL BOARD:</Text>
             <Text style={styles.fieldValue}>{item.last_medical_board_date}</Text>
           </View>
           <View style={styles.recordField}>
-            <Text style={styles.fieldLabel}>MEDICAL BOARD DUE DATE:</Text>
+            <Text style={styles.fieldLabel}>DUE DATE:</Text>
             <Text style={styles.fieldValue}>{item.medical_board_due_date}</Text>
           </View>
-          <View style={styles.recordField}>
-            <Text style={styles.fieldLabel}>REMARKS:</Text>
-            <Text style={styles.fieldValue} numberOfLines={0}>{item.remarks}</Text>
-          </View>
         </View>
-      </ScrollView>
+
+        <View style={styles.recordField}>
+          <Text style={styles.fieldLabel}>REMARKS:</Text>
+          <Text style={styles.fieldValue}>{item.remarks}</Text>
+        </View>
+      </View>
     </View>
   );
 
-  const getCategoryColor = (category: string) => {
-    switch (category?.toLowerCase()) {
-      case 'a1': return '#4CAF50';
-      case 'a2': return '#8BC34A';
-      case 'b1': return '#FFC107';
-      case 'b2': return '#FF9800';
-      case 'c1': return '#FF5722';
-      case 'c2': return '#F44336';
-      case 'temp': return '#9C27B0';
-      default: return '#9E9E9E';
-    }
-  };
-
   const totalRecords = lowMedicalRecords.length;
   const activeRecords = lowMedicalRecords.filter(r => r.status?.toLowerCase() === 'active').length;
-  const dueSoonRecords = lowMedicalRecords.filter(r => {
-    if (!r.medical_board_due_date) return false;
-    const dueDate = new Date(r.medical_board_due_date);
-    const today = new Date();
-    const diffTime = dueDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 30 && diffDays >= 0;
-  }).length;
 
   return (
     <View style={styles.container}>
@@ -708,7 +698,6 @@ export default function LMCRecords() {
             <View style={styles.statsGrid}>
               {renderStatsCard('Total Records', totalRecords, '📊', '#FF6B6B')}
               {renderStatsCard('Active Records', activeRecords, '🔴', '#FF4757')}
-              {renderStatsCard('Due Soon', dueSoonRecords, '⏰', '#FFA502')}
             </View>
 
             <View style={styles.actionContainer}>
@@ -842,40 +831,208 @@ export default function LMCRecords() {
 }
 
 const styles = StyleSheet.create({
+  recordHeader: {
+    marginBottom: 18,
+    paddingBottom: 15,
+    borderBottomWidth: 2,
+    borderBottomColor: '#FFE5E5',
+    alignItems: 'center', 
+  },
+  recordTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#8B0000',
+    marginBottom: 6,
+    textAlign: 'center', 
+  },
+  recordId: {
+    fontSize: 15,
+    color: '#DC143C',
+    fontWeight: '600',
+    backgroundColor: '#FFF5F5',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 15,
+    alignSelf: 'center', 
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#FFE5E5',
+    textAlign: 'center',
+  },
+  recordItem: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 18,
+    shadowColor: '#8B0000',
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 8,
+    borderLeftWidth: 5,
+    borderLeftColor: '#DC143C',
+    width: '100%',
+    alignSelf: 'center',
+    borderTopRightRadius: 18,
+    borderBottomRightRadius: 18,
+  },
+  recordField: {
+    flex: 1,
+    marginBottom: 12,
+    backgroundColor: '#FAFAFA',
+    padding: 12,
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFB6C1',
+    alignItems: 'center', 
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8B0000',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    textAlign: 'center', 
+  },
+  fieldValue: {
+    fontSize: 14,
+    color: '#2C2C2C',
+    flexWrap: 'wrap',
+    lineHeight: 20,
+    textAlign: 'center', 
+    paddingHorizontal: 4,
+  },
+  categoryBadge: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    alignSelf: 'center', 
+    marginTop: 4,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  recordSeparator: {
+    height: 2,
+    backgroundColor: '#FFE5E5',
+    marginVertical: isTablet ? 12 : 8,
+    borderRadius: 1,
+    shadowColor: '#8B0000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  datesContainer: {
+    flex: 1,
+    marginTop: 6,
+    padding: 10,
+    backgroundColor: '#FEFEFE',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FFE5E5',
+    alignItems: 'center', 
+  },
   datesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    justifyContent: 'center', 
+    alignItems: 'center',
   },
   dateChip: {
-    backgroundColor: '#E3F2FD',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: '#FFF0F0',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#DC143C',
     marginBottom: 4,
-    borderWidth: 1,
-    borderColor: '#90CAF9',
+    shadowColor: '#8B0000',
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordsContainer: {
+    width: '80%',
+    alignSelf: 'center',
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  highlightValue: {
+    color: '#DC143C',
+    fontWeight: 'bold',
+    fontSize: 15,
   },
   dateChipText: {
+    color: '#8B0000',
     fontSize: 12,
-    color: '#1565C0',
+    fontWeight: '700',
+  },
+  recordFieldRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 8,
+  },
+  dataCard: {
+    width: '80%',
+    alignSelf: 'center',
+    borderRadius: 15,
+    elevation: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderTopWidth: 4,
+    borderTopColor: '#8B0000',
+    shadowColor: '#8B0000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+  },
+  recordDetailsWrapper: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 25,
+    paddingHorizontal: isTablet ? 20 : 15,
+    marginBottom: 20,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#FFE5E5',
+    shadowColor: '#8B0000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    width: '80%',
+    alignSelf: 'center',
+  },
+  searchInput: {
+    flex: 1,
+    height: isTablet ? 60 : 50,
+    fontSize: isTablet ? 18 : 16,
+    color: '#333',
     fontWeight: '500',
   },
-  recordField: {
-    marginRight: isTablet ? 30 : 20,
-    minWidth: isTablet ? 200 : 150,
-    maxWidth: isTablet ? 300 : 220,
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 'auto',
+  searchIcon: {
+    fontSize: isTablet ? 24 : 20,
+    marginLeft: 10,
+    color: '#8B0000',
   },
-  datesContainer: {
-    flexDirection: 'column',
-    flexWrap: 'wrap',
-    alignItems: 'flex-start',
-    paddingLeft: 5,
-    paddingTop: 4,
-    marginTop: 4
+  categoryText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
   dateRow: {
     flexDirection: 'row',
@@ -1055,12 +1212,6 @@ const styles = StyleSheet.create({
     fontSize: isTablet ? 18 : 16,
     fontWeight: '600',
   },
-  dataCard: {
-    width: '100%',
-    borderRadius: 15,
-    elevation: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-  },
   cardTitle: {
     color: '#8B0000',
     fontSize: isTablet ? 22 : 18,
@@ -1074,17 +1225,6 @@ const styles = StyleSheet.create({
   tableCell: {
     color: '#333',
     fontSize: isTablet ? 14 : 12,
-  },
-  categoryBadge: {
-    paddingHorizontal: isTablet ? 12 : 8,
-    paddingVertical: isTablet ? 6 : 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  categoryText: {
-    color: 'white',
-    fontSize: isTablet ? 12 : 10,
-    fontWeight: 'bold',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -1143,75 +1283,8 @@ const styles = StyleSheet.create({
     fontSize: isTablet ? 20 : 16,
     fontWeight: 'bold',
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 25,
-    paddingHorizontal: isTablet ? 20 : 15,
-    marginBottom: 20,
-    elevation: 4,
-  },
-  searchInput: {
-    flex: 1,
-    height: isTablet ? 60 : 50,
-    fontSize: isTablet ? 18 : 16,
-    color: '#333',
-  },
-  searchIcon: {
-    fontSize: isTablet ? 24 : 20,
-    marginLeft: 10,
-  },
-  recordItem: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: isTablet ? 20 : 15,
-    marginVertical: isTablet ? 8 : 5,
-    elevation: 2,
-  },
-  recordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: isTablet ? 15 : 10,
-    paddingBottom: isTablet ? 15 : 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  recordTitle: {
-    fontSize: isTablet ? 20 : 16,
-    fontWeight: 'bold',
-    color: '#8B0000',
-    flex: 1,
-  },
-  recordId: {
-    fontSize: isTablet ? 18 : 14,
-    color: '#666',
-    fontWeight: '500',
-  },
   recordScroll: {
     flexGrow: 0,
-  },
-  fieldLabel: {
-    fontSize: isTablet ? 14 : 12,
-    fontWeight: 'bold',
-    color: '#8B0000',
-    marginBottom: 4,
-  },
-  fieldValue: {
-    fontSize: isTablet ? 16 : 14,
-    color: '#333',
-    flexWrap: 'wrap',
-  },
-  recordSeparator: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-    marginVertical: isTablet ? 8 : 5,
-  },
-  recordsContainer: {
-    width: '100%',
-    paddingTop: 20,
-    paddingBottom: 40,
   },
   statsGrid: {
     flexDirection: 'row',

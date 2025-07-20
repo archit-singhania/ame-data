@@ -293,15 +293,30 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
     try {
       const ameRecords = await getAMERecords();
       
-      const ageGroups = { '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '55+': 0 };
+      const ageGroups = {
+        '18-24': 0,
+        '25-30': 0,
+        '31-35': 0,
+        '36-40': 0,
+        '41-45': 0,
+        '46-50': 0,
+        '51-54': 0,
+        '55 and above': 0
+      };
+
       ameRecords.forEach(record => {
         const age = sanitizeChartData(record.age);
-        if (age >= 18 && age <= 25) ageGroups['18-25']++;
-        else if (age >= 26 && age <= 35) ageGroups['26-35']++;
-        else if (age >= 36 && age <= 45) ageGroups['36-45']++;
-        else if (age >= 46 && age <= 55) ageGroups['46-55']++;
-        else if (age > 55) ageGroups['55+']++;
+
+        if (age >= 18 && age <= 24) ageGroups['18-24']++;
+        else if (age >= 25 && age <= 30) ageGroups['25-30']++;
+        else if (age >= 31 && age <= 35) ageGroups['31-35']++;
+        else if (age >= 36 && age <= 40) ageGroups['36-40']++;
+        else if (age >= 41 && age <= 45) ageGroups['41-45']++;
+        else if (age >= 46 && age <= 50) ageGroups['46-50']++;
+        else if (age >= 51 && age <= 54) ageGroups['51-54']++;  
+        else if (age >= 55) ageGroups['55 and above']++;
       });
+
       
       const heightGroups = { '150-160': 0, '161-170': 0, '171-180': 0, '181-190': 0, '190+': 0 };
       ameRecords.forEach(record => {
@@ -1025,10 +1040,17 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
           .data-value { 
             color: #333; 
           }
-          .percentage { 
-            color: #4CAF50; 
-            font-weight: bold;
-          }
+          .percentage-age { color: #8E44AD; font-weight: bold; }         
+          .percentage-height { color: #2E86C1; font-weight: bold; }       
+          .percentage-weight { color: #117A65; font-weight: bold; }       
+          .percentage-bmi { color: #B03A2E; font-weight: bold; }          
+          .percentage-blood { color: #663399; font-weight: bold; }        
+          .percentage-pulse { color: #CA6F1E; font-weight: bold; }        
+          .percentage-vision { color: #008080; font-weight: bold; }       
+          .percentage-chest { color: #9A031E; font-weight: bold; }        
+          .percentage-bp { color: #7D3C98; font-weight: bold; }           
+          .percentage-waist { color: #A0522D; font-weight: bold; }        
+          .percentage-coy { color: #9C2542; font-weight: bold; }          
           .summary { 
             background-color: #e8f4f8; 
             padding: 15px; 
@@ -1064,7 +1086,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.range} years:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-age">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1075,7 +1097,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.range} cm:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-height">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1086,7 +1108,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.range} kg:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-weight">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1097,7 +1119,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.category}:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-bmi">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1108,7 +1130,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.group}:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-blood">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1119,7 +1141,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.range} bpm:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-pulse">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1130,7 +1152,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.vision}:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-vision">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1141,7 +1163,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.range} cm:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-chest">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1152,7 +1174,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.category}:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-bp">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1163,7 +1185,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               <div class="data-row">
                 <span class="data-label">${item.range}:</span>
                 <span class="data-value">${item.count} records</span>
-                <span class="percentage">(${item.percentage}%)</span>
+                <span class="percentage-waist">(${item.percentage}%)</span>
               </div>
             `).join('')}
           </div>
@@ -1175,7 +1197,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
             <div class="data-row">
               <span class="data-label">${item.company}:</span>
               <span class="data-value">${item.count} personnel</span>
-              <span class="percentage">(${item.percentage}%)</span>
+              <span class="percentage-coy">(${item.percentage}%)</span>
             </div>
           `).join('')}
         </div>
@@ -1314,7 +1336,6 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
               margin-bottom: 15px;
               font-size: 11px;
             }
-            /* AME Table Column Widths */
             .ame-table th:nth-child(1), .ame-table td:nth-child(1) { width: 4%; }  
             .ame-table th:nth-child(2), .ame-table td:nth-child(2) { width: 8%; }  
             .ame-table th:nth-child(3), .ame-table td:nth-child(3) { width: 12%; } 
@@ -1414,7 +1435,6 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
     const generateCompleteLMCTableHTML = (data: LowMedicalRecord[]): string => {
       const timestamp = new Date().toLocaleString();
       
-      // Sort data by serial number
       const sortedData = [...data].sort((a, b) => {
           const serialA = parseInt(a.serial_no?.toString() || '0') || 0;
           const serialB = parseInt(b.serial_no?.toString() || '0') || 0;
@@ -1544,13 +1564,11 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
                   }
                   
                   try {
-                    // First try to parse as JSON array
                     const parsedDates = JSON.parse(record.category_allotment_date);
                     if (Array.isArray(parsedDates) && parsedDates.length > 0) {
                       return parsedDates.filter(date => date && date.trim()).join(', ');
                     }
                   } catch (e) {
-                    // If JSON parsing fails, treat as raw string with multiple dates
                     const dates = parseCategoryAllotmentDates(record.category_allotment_date);
                     if (dates.length > 0) {
                       return dates.join(', ');
@@ -1612,14 +1630,12 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
         let sortedData: any[] = [];
         
         if (tableType === 'ame') {
-            // Sort AME data by s_no
             sortedData = [...data].sort((a, b) => {
                 const serialA = parseInt(a.s_no?.toString() || '0') || 0;
                 const serialB = parseInt(b.s_no?.toString() || '0') || 0;
                 return serialA - serialB;
             });
             
-            // AME Excel headers and data
             const headers = [
                 'S.No', 'Regt ID/IRLA No', 'Full Name', 'Rank', 'Unit', 'Age', 'Height (cm)', 
                 'Weight (kg)', 'Chest (cm)', 'Waist-Hip Ratio', 'BMI', 'Pulse', 
@@ -1653,7 +1669,6 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
                 ])
             ];
         } else {
-            // Sort LMC data by serial_no
             sortedData = [...data].sort((a, b) => {
                 const serialA = parseInt(a.serial_no?.toString() || '0') || 0;
                 const serialB = parseInt(b.serial_no?.toString() || '0') || 0;
@@ -1674,13 +1689,11 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
                       categoryDates = '';
                   } else {
                       try {
-                          // First try to parse as JSON array
                           const parsedDates = JSON.parse(record.category_allotment_date);
                           if (Array.isArray(parsedDates) && parsedDates.length > 0) {
                               categoryDates = parsedDates.filter(date => date && date.trim()).join(', ');
                           }
                       } catch (e) {
-                          // If JSON parsing fails, use the parseCategoryAllotmentDates function
                           const dates = parseCategoryAllotmentDates(record.category_allotment_date);
                           if (dates.length > 0) {
                               categoryDates = dates.join(', ');
@@ -1708,44 +1721,42 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
         
         const ws = XLSX.utils.aoa_to_sheet(worksheetData);
         
-        // Updated column widths with increased sizes
         const columnWidths = tableType === 'ame' ? [
-            { wch: 8 },   // S.No
-            { wch: 15 },  // Regt ID/IRLA No
-            { wch: 35 },  // Full Name (increased from 20)
-            { wch: 12 },  // Rank
-            { wch: 10 },  // Coy
-            { wch: 8 },   // Age
-            { wch: 12 },  // Height (cm)
-            { wch: 12 },  // Weight (kg)
-            { wch: 12 },  // Chest (cm)
-            { wch: 15 },  // Waist-Hip Ratio
-            { wch: 8 },   // BMI
-            { wch: 8 },  // Pulse
-            { wch: 12 },  // Blood Group
-            { wch: 15 },  // Blood Pressure
-            { wch: 12 },  // Vision
-            { wch: 18 },  // Previous Category
-            { wch: 15 },  // AME Date
-            { wch: 18 },  // Present Category
-            { wch: 20 },  // Category Reason
-            { wch: 25 }   // Remarks
+            { wch: 8 },   
+            { wch: 15 },  
+            { wch: 35 },  
+            { wch: 12 },  
+            { wch: 10 }, 
+            { wch: 8 },   
+            { wch: 12 },  
+            { wch: 12 },  
+            { wch: 12 },  
+            { wch: 15 },  
+            { wch: 8 },   
+            { wch: 8 },  
+            { wch: 12 },  
+            { wch: 15 },  
+            { wch: 12 },  
+            { wch: 18 }, 
+            { wch: 15 }, 
+            { wch: 18 }, 
+            { wch: 20 }, 
+            { wch: 25 }  
         ] : [
-            { wch: 10 },  // Serial No
-            { wch: 18 },  // Regt ID/IRLA No
-            { wch: 30 },  // Name
-            { wch: 12 },  // Rank
-            { wch: 120 }, // Disease/Reason 
-            { wch: 22 },  // Medical Category
-            { wch: 35 },  // Category Allotment Date 
-            { wch: 22 },  // Last Medical Board Date
-            { wch: 22 },  // Medical Board Due Date
-            { wch: 25 }   // Remarks
+            { wch: 10 },  
+            { wch: 18 },  
+            { wch: 30 },  
+            { wch: 12 },  
+            { wch: 120 }, 
+            { wch: 22 },  
+            { wch: 35 },  
+            { wch: 22 },  
+            { wch: 22 },  
+            { wch: 25 }   
         ];
 
         ws['!cols'] = columnWidths;
         
-        // Set text wrapping for disease reason column in LMC
         if (tableType === 'lmc') {
             const diseaseReasonCol = 'E'; 
             for (let i = 2; i <= sortedData.length + 1; i++) {
@@ -1760,10 +1771,8 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, `${tableType.toUpperCase()} Records`);
         
-        // Generate buffer
         const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
         
-        // Create file
         const fileName = `MedTrack_Complete_${tableType.toUpperCase()}_${new Date().toISOString().split('T')[0]}.xlsx`;
         const fileUri = FileSystem.documentDirectory + fileName;
         
@@ -1771,7 +1780,6 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
         encoding: FileSystem.EncodingType.Base64,
         });
         
-        // Share file
         if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri);
         } else {
@@ -2086,29 +2094,59 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
   };
 
   const processPieData = (data: any[], labelKey: string, valueKey: string) => {
-    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+    const premiumColors = [
+      '#D4AF37', 
+      '#C0C0C0', 
+      '#8C7853', 
+      '#6A0572', 
+      '#34568B', 
+      '#009688', 
+      '#E07A5F', 
+      '#FFB400', 
+      '#B76E79', 
+      '#3E2723', 
+      '#607D8B',
+      '#008080', 
+      '#4B0082', 
+      '#708090', 
+      '#800000', 
+      '#2C3E50', 
+      '#A0522D', 
+    ];
+
     const filteredData = data.filter(item => {
       const value = item[valueKey];
       return value !== undefined && value !== null && !isNaN(value) && isFinite(value) && value > 0;
     });
-    
+
     if (filteredData.length === 0) {
       return [{
         name: 'No Data',
         population: 1,
-        color: colors[0],
+        color: '#FF6B6B',
         legendFontColor: '#fff',
         legendFontSize: 12,
       }];
     }
-    
-    return filteredData.map((item: any, index: number) => ({
-      name: item[labelKey].toString(),
-      population: Math.max(parseFloat(item[valueKey]) || 0, 1),
-      color: colors[index % colors.length],
-      legendFontColor: '#fff',
-      legendFontSize: 12,
-    }));
+
+    return filteredData.map((item: any, index: number) => {
+      const label = item[labelKey].toString().toLowerCase();
+      const value = Math.max(parseFloat(item[valueKey]) || 0, 1);
+
+      let color = premiumColors[index % premiumColors.length];
+
+      if (label.includes('obese')) color = '#FF6B6B';           
+      else if (label.includes('overweight')) color = '#FFA500'; 
+      else if (label.includes('normal')) color = '#4CAF50';     
+
+      return {
+        name: item[labelKey].toString(),
+        population: value,
+        color,
+        legendFontColor: '#fff',
+        legendFontSize: 12,
+      };
+    });
   };
 
   const ChartSection = ({
@@ -2128,8 +2166,8 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
 
   const getChartWidth = () => {
     const padding = width < 350 ? 10 : width < 500 ? 15 : 20; 
-    const minWidth = 320; // Increased from 250
-    const maxWidth = width > 800 ? 750 : width - 30; // Reduced padding for larger charts
+    const minWidth = 320;
+    const maxWidth = width > 800 ? 750 : width - 30;
     
     let calculatedWidth = width - padding;
     
@@ -2142,15 +2180,13 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
     return calculatedWidth;
   };
 
-  // 2. Update getChartHeight function for taller charts
   const getChartHeight = () => {
-    if (width < 350) return 220; // Increased from 180
-    if (width < 500) return 250; // Increased from 200
-    if (width < 800) return 280; // Increased from 220
-    return 300; // Increased from 240
+    if (width < 350) return 220; 
+    if (width < 500) return 250; 
+    if (width < 800) return 280; 
+    return 300; 
   };
 
-  // 3. Enhanced chartConfig with modern colors and styling
   const chartConfig = {
     backgroundColor: 'transparent',
     backgroundGradientFrom: '#1e1e2e',
@@ -2177,35 +2213,6 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
     useShadowColorFromDataset: false,
     showValuesOnTopOfBars: true,
     formatYLabel: (value: any) => Math.round(value).toString()
-  };
-
-  // 4. Enhanced Age Distribution with proper age ranges
-  const processAgeDistribution = (ageData: any) => {
-    const ageRanges = [
-      { label: '18-25', min: 18, max: 25, count: 0 },
-      { label: '25-30', min: 25, max: 30, count: 0 },
-      { label: '30-35', min: 30, max: 35, count: 0 },
-      { label: '35-45', min: 35, max: 45, count: 0 },
-      { label: '45-55', min: 45, max: 55, count: 0 },
-      { label: '55+', min: 55, max: 100, count: 0 }
-    ];
-    
-    // Process your age data into these ranges
-    // This is a placeholder - replace with your actual age processing logic
-    return {
-      labels: ageRanges.map(range => range.label),
-      datasets: [{
-        data: ageRanges.map(range => range.count),
-        colors: [
-          () => '#FF6B6B', // Red
-          () => '#4ECDC4', // Teal  
-          () => '#45B7D1', // Blue
-          () => '#96CEB4', // Green
-          () => '#FFEAA7', // Yellow
-          () => '#DDA0DD'  // Purple
-        ]
-      }]
-    };
   };
 
   const processVisionProgressData = (distribution: { vision: string; count: number }[]) => {
@@ -2306,7 +2313,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
                 {analyticsData.ageDistribution?.length > 0 && (
                   <ChartSection title="Age Distribution">
                     <BarChart
-                      data={processAgeDistribution(analyticsData.ageDistribution)}
+                      data={processChartData(analyticsData.ageDistribution, 'range', 'count')}
                       width={getChartWidth()}
                       height={getChartHeight()}
                       chartConfig={{
@@ -2327,7 +2334,7 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
                   <PieChart
                     data={processPieData(analyticsData.bmiDistribution, 'category', 'count')}
                     width={getChartWidth()}
-                    height={getChartHeight() + 40} // Extra height for pie charts
+                    height={getChartHeight() + 40} 
                     chartConfig={{
                       ...chartConfig,
                       color: (opacity = 1) => `rgba(255, 107, 107, ${opacity})`,
@@ -2389,6 +2396,11 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
                     chartConfig={{
                       ...chartConfig,
                       color: (opacity = 1) => `rgba(156, 39, 176, ${opacity})`,
+                      propsForLabels: {
+                        fill: '#FFFFFF',
+                        fontSize: 12,
+                        fontWeight: 'bold'
+                      }
                     }}
                     style={styles.chart}
                     showValuesOnTopOfBars={true}
@@ -2399,11 +2411,11 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
                   />
                 </ChartSection>
 
-                <ChartSection title="Company Distribution">
+                <ChartSection title="Coy Distribution">
                   <PieChart
                     data={processPieData(analyticsData.companyDistribution, 'company', 'count')}
                     width={getChartWidth()}
-                    height={getChartHeight() + 60} // Extra height for legend
+                    height={getChartHeight() + 60}  
                     chartConfig={{
                       ...chartConfig,
                       color: (opacity = 1) => `rgba(63, 81, 181, ${opacity})`,
@@ -2426,8 +2438,8 @@ const Reports: React.FC<ReportsProps> = ({ navigation }) => {
                     }}
                     width={getChartWidth()}
                     height={getChartHeight() + 20}
-                    strokeWidth={20} // Increased thickness
-                    radius={40} // Larger radius
+                    strokeWidth={20} 
+                    radius={40}
                     chartConfig={{
                       ...chartConfig,
                       color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,

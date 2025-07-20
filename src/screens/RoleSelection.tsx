@@ -260,7 +260,7 @@ export default function RoleSelection({ navigation }: any) {
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
       <Video
-        source={require('../../assets/ame-bg-vid.mp4')}
+        source={{ uri: 'https://storage.googleapis.com/medtrack-media/ame-bg-vid.mp4' }}
         style={styles.backgroundVideo}
         shouldPlay={true}
         isLooping={true}
@@ -370,7 +370,7 @@ export default function RoleSelection({ navigation }: any) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
-          scrollEnabled={needsScroll}
+          scrollEnabled={true} 
           bounces={true}
           onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}
         >
@@ -506,13 +506,13 @@ const createStyles = (
     paddingBottom: isVerySmallPhone ? 30 : isSmallPhone ? 40 : 50,
     paddingTop: isVerySmallPhone ? 80 : isSmallPhone ? 90 : 100,
     width: '100%',
-    minHeight: needsScroll ? height : 'auto',
+    minHeight: height, 
   },
   contentWrapper: {
     alignItems: 'center',
     width: '100%',
-    flex: needsScroll ? 0 : 1,
-    justifyContent: needsScroll ? 'flex-start' : 'center',
+    flex: 0, 
+    justifyContent: 'flex-start', 
   },
   content: {
     alignItems: 'center',
@@ -576,8 +576,9 @@ const createStyles = (
                   isLargeTablet ? 'row' : 
                   isTablet && isLandscape ? 'row' : 
                   isSmallTablet && isLandscape ? 'row' : 'column',
-    flexWrap: isSmallTablet || isTablet ? 'wrap' : 'nowrap',
+    flexWrap: 'wrap',
     justifyContent: isTablet || isLargeTablet || isVeryLargeTablet ? 'space-evenly' : 'center',
+    paddingBottom: isVeryLargeTablet || isLargeTablet ? 20 : 0, 
   },
   glowWrapper: {
     width: isVeryLargeTablet ? '30%' : 

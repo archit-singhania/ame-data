@@ -36,6 +36,8 @@ export default function LMCStatViewer() {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const sparkleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const shineAnim = useRef(new Animated.Value(0)).current;
   
   const [editingRemarks, setEditingRemarks] = useState<{[key: string]: boolean}>({});
   const [tempRemarks, setTempRemarks] = useState<{[key: string]: string}>({});
@@ -44,9 +46,10 @@ export default function LMCStatViewer() {
     updateLowMedicalRecord(parseInt(recordId), { remarks: newRemarks });
     
     const updatedRecords = lmcRecords.map(record => 
-        record.id?.toString() === recordId ? { ...record, remarks: newRemarks } : record
+      record.id?.toString() === recordId ? { ...record, remarks: newRemarks } : record
     );
-    setLmcRecords(updatedRecords);
+    const sortedUpdatedRecords = sortRecordsBySerialNo(updatedRecords);
+    setLmcRecords(sortedUpdatedRecords);
     
     setEditingRemarks(prev => ({ ...prev, [recordId]: false }));
     setTempRemarks(prev => ({ ...prev, [recordId]: '' }));
@@ -73,18 +76,18 @@ export default function LMCStatViewer() {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 1000,
+        duration: 1200,
         useNativeDriver: true,
       }),
       Animated.spring(slideAnim, {
         toValue: 0,
-        tension: 50,
+        tension: 60,
         friction: 8,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
-        tension: 100,
+        tension: 120,
         friction: 8,
         useNativeDriver: true,
       }),
@@ -94,12 +97,12 @@ export default function LMCStatViewer() {
       Animated.sequence([
         Animated.timing(floatAnim, {
           toValue: 1,
-          duration: 4000,
+          duration: 3000,
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
-          duration: 4000,
+          duration: 3000,
           useNativeDriver: true,
         }),
       ])
@@ -109,12 +112,12 @@ export default function LMCStatViewer() {
       Animated.sequence([
         Animated.timing(sparkleAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 1500,
           useNativeDriver: true,
         }),
         Animated.timing(sparkleAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 1500,
           useNativeDriver: true,
         }),
       ])
@@ -123,13 +126,36 @@ export default function LMCStatViewer() {
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 1500,
+          toValue: 1.08,
+          duration: 1200,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1500,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 10000,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shineAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shineAnim, {
+          toValue: 0,
+          duration: 2000,
           useNativeDriver: true,
         }),
       ])
@@ -140,19 +166,20 @@ export default function LMCStatViewer() {
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
-        setFilteredRecords(lmcRecords);
+      setFilteredRecords(lmcRecords);
     } else {
-        const filtered = lmcRecords.filter(record => 
+      const filtered = lmcRecords.filter(record => 
         record.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.personnel_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.rank?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.medical_category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.disease_reason?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.remarks?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-        setFilteredRecords(filtered);
+      );
+      const sortedFiltered = sortRecordsBySerialNo(filtered);
+      setFilteredRecords(sortedFiltered);
     }
-    }, [searchQuery, lmcRecords]);
+  }, [searchQuery, lmcRecords]);
 
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', () => {
@@ -161,6 +188,14 @@ export default function LMCStatViewer() {
     
     return () => subscription?.remove();
   }, []);
+
+  const sortRecordsBySerialNo = (records: LowMedicalRecord[]) => {
+    return records.sort((a, b) => {
+      const serialA = a.serial_no || 0;
+      const serialB = b.serial_no || 0;
+      return serialA - serialB;
+    });
+  };
 
   const initializeData = async () => {
     try {
@@ -174,46 +209,25 @@ export default function LMCStatViewer() {
   const loadLMCRecords = async () => {
     try {
       const records = await getLowMedicalRecords();
-      setLmcRecords(records);
+      const sortedRecords = sortRecordsBySerialNo(records);
+      setLmcRecords(sortedRecords);
     } catch (error) {
       console.error('Error loading LMC records:', error);
     }
   };
 
-  const getRankColor = (rank: string) => {
-    if (!rank) return '#6B7280';
-    const r = rank.toLowerCase();
-    if (r.includes('col') || r.includes('gen')) return '#1F2937';
-    if (r.includes('maj') || r.includes('capt')) return '#374151';
-    if (r.includes('lt')) return '#4B5563';
-    if (r.includes('sub') || r.includes('hav')) return '#6B7280';
-    return '#9CA3AF';
-  };
-
   const getCategoryColor = (category: string) => {
-    if (!category || category === '-') return '#6B7280';
+    if (!category || category === '-') return ['#64748B', '#94A3B8'];
     
     switch (category?.toLowerCase()) {
-      case 'a1': return '#166534';
-      case 'a2': return '#15803D';
-      case 'b1': return '#92400E';
-      case 'b2': return '#A16207';
-      case 'c1': return '#991B1B';
-      case 'c2': return '#B91C1C';
-      case 'temp': return '#581C87';
-      default: return '#6B7280';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    if (!status || status === '-') return '#6B7280';
-    
-    switch (status?.toLowerCase()) {
-      case 'active': return '#166534';
-      case 'inactive': return '#991B1B';
-      case 'pending': return '#92400E';
-      case 'review': return '#581C87';
-      default: return '#6B7280';
+      case 'a1': return ['#059669', '#10B981', '#34D399'];
+      case 'a2': return ['#0891B2', '#06B6D4', '#22D3EE'];
+      case 'b1': return ['#D97706', '#F59E0B', '#FCD34D'];
+      case 'b2': return ['#EA580C', '#F97316', '#FB923C'];
+      case 'c1': return ['#DC2626', '#EF4444', '#F87171'];
+      case 'c2': return ['#BE185D', '#EC4899', '#F472B6'];
+      case 'temp': return ['#7C3AED', '#A855F7', '#C084FC'];
+      default: return ['#64748B', '#94A3B8'];
     }
   };
 
@@ -222,499 +236,419 @@ export default function LMCStatViewer() {
     return dateString;
   };
 
-  const calculateDaysUntilDue = (dueDateString: string) => {
-    if (!dueDateString || dueDateString === '-') return null;
-    
-    try {
-      const [day, month, year] = dueDateString.split('.').map(Number);
-      const dueDate = new Date(year, month - 1, day);
-      const today = new Date();
-      const diffTime = dueDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays;
-    } catch {
-      return null;
-    }
-  };
-
   const renderRecordItem = ({ item, index }: { item: LowMedicalRecord; index: number }) => {
-    const daysUntilDue = calculateDaysUntilDue(item.medical_board_due_date);
-    const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
-    const isDueSoon = daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 30;
     const categoryDates = parseCategoryAllotmentDates(item.category_allotment_date);
 
     return (
-      <Animated.View 
-        style={[
-          styles.recordItem,
-          screenDimensions.isSmallScreen && styles.recordItemSmall,
-          screenDimensions.isLargeScreen && styles.recordItemLarge,
-          screenDimensions.isXLargeScreen && styles.recordItemXLarge,
-          {
-            transform: [{
-              scale: fadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.8, 1],
-              })
-            }]
-          }
-        ]}
+      <LinearGradient
+        colors={['#DC2626', '#EF4444', '#F87171']}
+        style={styles.recordItemWrapper}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <LinearGradient
-          colors={['#F9FAFB', '#F3F4F6', '#E5E7EB']}
+        <Animated.View 
           style={[
-            styles.recordGradient,
-            screenDimensions.isSmallScreen && styles.recordGradientSmall,
-            screenDimensions.isLargeScreen && styles.recordGradientLarge
+            styles.recordItem,
+            screenDimensions.isSmallScreen && styles.recordItemSmall,
+            screenDimensions.isLargeScreen && styles.recordItemLarge,
+            screenDimensions.isXLargeScreen && styles.recordItemXLarge,
+            {
+              transform: [{
+                scale: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.85, 1],
+                })
+              }],
+              opacity: fadeAnim
+            }
           ]}
         >
-          <View style={[
-            styles.recordHeader,
-            screenDimensions.isSmallScreen && styles.recordHeaderSmall
-          ]}>
-            <View style={styles.recordHeaderLeft}>
-              <LinearGradient
-                colors={['#1F2937', '#374151']}
-                style={[
-                  styles.profileCircle,
-                  screenDimensions.isSmallScreen && styles.profileCircleSmall,
-                  screenDimensions.isLargeScreen && styles.profileCircleLarge
-                ]}
-              >
-                <Text style={[
-                  styles.profileInitial,
-                  screenDimensions.isSmallScreen && styles.profileInitialSmall,
-                  screenDimensions.isLargeScreen && styles.profileInitialLarge
-                ]}>
-                  {item.name ? item.name.charAt(0).toUpperCase() : '?'}
-                </Text>
-              </LinearGradient>
-              <View style={styles.headerInfo}>
-                <Text style={[
-                  styles.recordTitle,
-                  screenDimensions.isSmallScreen && styles.recordTitleSmall,
-                  screenDimensions.isLargeScreen && styles.recordTitleLarge
-                ]}>{item.name || 'Unknown'}</Text>
-                <View style={styles.idContainer}>
-                  <Text style={[
-                      styles.recordSubtitle,
-                      screenDimensions.isSmallScreen && styles.recordSubtitleSmall,
-                      screenDimensions.isLargeScreen && styles.recordSubtitleLarge
-                  ]}>
-                      {['COMDT', 'comdt', '2IC', '2ic', 'DC', 'dc', 'AC', 'ac'].includes(item.rank?.toLowerCase()) 
-                      ? `IRLA No: ${item.personnel_id || 'No ID'}`
-                      : `Regt ID: ${item.personnel_id || 'No ID'}`
-                      }
-                  </Text>
-                  </View>
-              </View>
-            </View>
-            <View style={styles.recordHeaderRight}>
-              <View style={styles.serialBadge}>
-                <Text style={[
-                  styles.serialText,
-                  screenDimensions.isLargeScreen && styles.serialTextLarge
-                ]}>#{item.serial_no || '-'}</Text>
-              </View>
-              <LinearGradient
-                colors={[getRankColor(item.rank), `${getRankColor(item.rank)}CC`]}
-                style={styles.rankBadge}
-              >
-                <Text style={[
-                  styles.rankText,
-                  screenDimensions.isLargeScreen && styles.rankTextLarge
-                ]}>{item.rank || '-'}</Text>
-              </LinearGradient>
-            </View>
-          </View>
+          <LinearGradient
+            colors={['#FFFFFF', '#F0FDF9', '#ECFDF5']} 
+            style={[
+              styles.recordGradient,
+              screenDimensions.isSmallScreen && styles.recordGradientSmall,
+              screenDimensions.isLargeScreen && styles.recordGradientLarge
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Animated.View style={[
+              styles.shineOverlay,
+              {
+                opacity: shineAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 0.1],
+                }),
+              }
+            ]} />
 
-          <View style={[
-            styles.quickInfoPills,
-            screenDimensions.isSmallScreen && styles.quickInfoPillsSmall,
-            {
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              justifyContent: 'space-between',
-            },
-          ]}>
-            {[
-              { icon: '🏥', label: 'Category', value: item.medical_category || '-', gradient: ['#166534', '#15803D'] },
-              { icon: '⚕️', label: 'Disease/Reason', value: item.disease_reason || '-', gradient: ['#991B1B', '#B91C1C'] },
-              { 
-                icon: '🕐', 
-                label: 'Days Until Due', 
-                value: daysUntilDue !== null ? 
-                  (isOverdue ? `${Math.abs(daysUntilDue)} overdue` : `${daysUntilDue} days`) : '-',
-                gradient: isOverdue ? ['#991B1B', '#B91C1C'] : isDueSoon ? ['#92400E', '#A16207'] : ['#4B5563', '#6B7280']
-              },
-              { icon: '📊', label: 'Status', value: item.status || '-', gradient: [getStatusColor(item.status), `${getStatusColor(item.status)}CC`] },
-            ].map(({ icon, label, value, gradient }, index) => (
-              <LinearGradient
-                key={index}
-                colors={gradient as [string, string, ...string[]]}
-                style={[
-                  styles.infoPill,
-                  screenDimensions.isSmallScreen && styles.infoPillSmall,
-                  screenDimensions.isLargeScreen && styles.infoPillLarge,
-                  {
-                    width: '48%',
-                    marginBottom: 12,
-                  },
-                ]}
-              >
-                <Text style={[
-                  styles.pillIcon,
-                  screenDimensions.isSmallScreen && styles.pillIconSmall,
-                  screenDimensions.isLargeScreen && styles.pillIconLarge,
-                ]}>
-                  {icon}
-                </Text>
-                <Text style={[
-                  styles.pillLabel,
-                  screenDimensions.isSmallScreen && styles.pillLabelSmall,
-                  screenDimensions.isLargeScreen && styles.pillLabelLarge,
-                ]}>
-                  {label}
-                </Text>
-                <Text style={[
-                  styles.pillValue,
-                  screenDimensions.isSmallScreen && styles.pillValueSmall,
-                  screenDimensions.isLargeScreen && styles.pillValueLarge,
-                ]}>
-                  {value}
-                </Text>
-              </LinearGradient>
-            ))}
-          </View>
-
-          <View style={styles.medicalStatusContainer}>
-            <LinearGradient
-              colors={['#166534', '#15803D']}
-              style={[
-                styles.medicalStatusBar,
-                screenDimensions.isSmallScreen && styles.medicalStatusBarSmall,
-                screenDimensions.isLargeScreen && styles.medicalStatusBarLarge,
-                {
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                },
-              ]}
-            >
-              <View style={styles.statusSection}>
-                <Text style={[
-                  styles.statusLabel,
-                  screenDimensions.isSmallScreen && styles.statusLabelSmall,
-                  screenDimensions.isLargeScreen && styles.statusLabelLarge,
-                ]}>
-                  Medical Category
-                </Text>
-                <View style={[
-                  styles.statusBadge,
-                  { backgroundColor: getCategoryColor(item.medical_category) },
-                ]}>
-                  <Text style={[
-                    styles.statusText,
-                    screenDimensions.isSmallScreen && styles.statusTextSmall,
-                    screenDimensions.isLargeScreen && styles.statusTextLarge,
-                  ]}>
-                    {item.medical_category || '-'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.statusArrow}>
-                <LinearGradient
-                  colors={['#92400E', '#A16207']}
-                  style={styles.arrowContainer}
-                >
-                  <Text style={[
-                    styles.arrowText,
-                    screenDimensions.isSmallScreen && styles.arrowTextSmall,
-                    screenDimensions.isLargeScreen && styles.arrowTextLarge,
-                  ]}>
-                    📅
-                  </Text>
-                </LinearGradient>
-              </View>
-
-              <View style={styles.statusSection}>
-                <Text style={[
-                  styles.statusLabel,
-                  screenDimensions.isSmallScreen && styles.statusLabelSmall,
-                  screenDimensions.isLargeScreen && styles.statusLabelLarge,
-                ]}>
-                  Board Due Date
-                </Text>
-                <View style={[
-                  styles.statusBadge,
-                  { backgroundColor: isOverdue ? '#991B1B' : isDueSoon ? '#92400E' : '#4B5563' },
-                ]}>
-                  <Text style={[
-                    styles.statusText,
-                    screenDimensions.isSmallScreen && styles.statusTextSmall,
-                    screenDimensions.isLargeScreen && styles.statusTextLarge,
-                  ]}>
-                    {formatDate(item.medical_board_due_date)}
-                  </Text>
-                </View>
-              </View>
-            </LinearGradient>
-
-            <View style={styles.awardedCategorySection}>
-              <Text style={[
-                styles.awardedLabel,
-                screenDimensions.isSmallScreen && styles.awardedLabelSmall,
-                screenDimensions.isLargeScreen && styles.awardedLabelLarge,
-              ]}>
-                Category Allotment Dates:
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {categoryDates.length > 0 ? categoryDates.map((date, idx) => (
-                  <LinearGradient
-                    key={idx}
-                    colors={['#581C87', '#7C3AED']}
-                    style={[styles.awardedBadge, { marginRight: 8, marginBottom: 4 }]}
-                  >
-                    <Text style={[
-                      styles.awardedText,
-                      screenDimensions.isSmallScreen && styles.awardedTextSmall,
-                      screenDimensions.isLargeScreen && styles.awardedTextLarge,
-                    ]}>
-                      {date}
-                    </Text>
-                  </LinearGradient>
-                )) : (
-                  <LinearGradient
-                    colors={['#6B7280', '#9CA3AF']}
-                    style={styles.awardedBadge}
-                  >
-                    <Text style={[
-                      styles.awardedText,
-                      screenDimensions.isSmallScreen && styles.awardedTextSmall,
-                      screenDimensions.isLargeScreen && styles.awardedTextLarge,
-                    ]}>
-                      No dates recorded
-                    </Text>
-                  </LinearGradient>
-                )}
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.detailsContainer}>
             <View style={[
-              styles.detailsGrid,
-              screenDimensions.isSmallScreen && styles.detailsGridSmall,
-              screenDimensions.isLargeScreen && styles.detailsGridLarge
+              styles.recordHeader,
+              screenDimensions.isSmallScreen && styles.recordHeaderSmall
             ]}>
-              {[
-                { icon: '🩺', label: 'Disease/Reason', value: item.disease_reason || '-', gradient: ['#991B1B', '#B91C1C'] },
-                { icon: '📅', label: 'Last Board Date', value: formatDate(item.last_medical_board_date), gradient: ['#4B5563', '#6B7280'] },
-                { icon: '⏰', label: 'Due Date', value: formatDate(item.medical_board_due_date), gradient: ['#92400E', '#A16207'] },
-                { icon: '📊', label: 'Status', value: item.status || '-', gradient: [getStatusColor(item.status), `${getStatusColor(item.status)}CC`] },
-                { icon: '🏥', label: 'Medical Cat', value: item.medical_category || '-', gradient: [getCategoryColor(item.medical_category), `${getCategoryColor(item.medical_category)}CC`] },
-                { icon: '🆔', label: 'Personnel ID', value: item.personnel_id || '-', gradient: ['#1F2937', '#374151'] },
-                { icon: '📋', label: 'Serial No', value: item.serial_no?.toString() || '-', gradient: ['#166534', '#15803D'] },
-                { icon: '🔄', label: 'Updated', value: item.updated_at ? new Date(item.updated_at).toLocaleDateString() : '-', gradient: ['#581C87', '#7C3AED'] },
-              ].map((detail, index) => (
-                <LinearGradient
-                  key={index}
-                  colors={detail.gradient as [string, string, ...string[]]}
+              <View style={styles.recordHeaderLeft}>
+                <Animated.View
                   style={[
-                    styles.detailCard,
-                    screenDimensions.isSmallScreen && styles.detailCardSmall,
-                    screenDimensions.isLargeScreen && styles.detailCardLarge
+                    {
+                      transform: [{ scale: pulseAnim }],
+                    }
                   ]}
                 >
-                  <Text style={[
-                    styles.detailIcon,
-                    screenDimensions.isSmallScreen && styles.detailIconSmall,
-                    screenDimensions.isLargeScreen && styles.detailIconLarge
-                  ]}>{detail.icon}</Text>
-                  <Text style={[
-                    styles.detailLabel,
-                    screenDimensions.isSmallScreen && styles.detailLabelSmall,
-                    screenDimensions.isLargeScreen && styles.detailLabelLarge
-                  ]}>{detail.label}</Text>
-                  <Text style={[
-                    styles.detailValue,
-                    screenDimensions.isSmallScreen && styles.detailValueSmall,
-                    screenDimensions.isLargeScreen && styles.detailValueLarge
-                  ]}>{detail.value}</Text>
-                </LinearGradient>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.recordFooter}>
-              <LinearGradient
-                  colors={['#E5E7EB', '#D1D5DB']}
-                  style={[styles.footerDivider, { height: 2, marginVertical: 16 }]}
-              />
-              
-              <LinearGradient
-                  colors={['#F8FAFC', '#F1F5F9', '#E2E8F0']}
-                  style={[
-                  styles.remarksContainer,
-                  {
-                      borderRadius: 16,
-                      padding: 20,
-                      marginBottom: 8,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.1,
-                      shadowRadius: 8,
-                      elevation: 3,
-                  }
-                  ]}
-              >
-                  <View style={{ 
-                  flexDirection: 'row', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between', 
-                  marginBottom: 16 
-                  }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <LinearGradient
-                      colors={['#1F2937', '#374151']}
-                      style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 16,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: 12,
-                      }}
-                      >
-                      <Text style={{ fontSize: 16 }}>📝</Text>
-                      </LinearGradient>
-                      <Text style={[
-                      styles.footerLabel,
-                      screenDimensions.isSmallScreen && styles.footerLabelSmall,
-                      screenDimensions.isLargeScreen && styles.footerLabelLarge,
-                      { 
-                          fontWeight: '700',
-                          color: '#1F2937',
-                          fontSize: screenDimensions.isSmallScreen ? 16 : screenDimensions.isLargeScreen ? 20 : 18,
-                      },
-                      ]}>
-                      Medical Remarks
-                      </Text>
-                  </View>
-                  
-                  <TouchableOpacity
-                      onPress={() => {
-                      if (editingRemarks[item.id?.toString() || '']) {
-                          handleRemarksEdit(item.id?.toString() || '', tempRemarks[item.id?.toString() || ''] || item.remarks || '');
-                      } else {
-                          setEditingRemarks(prev => ({ ...prev, [item.id?.toString() || '']: true }));
-                          setTempRemarks(prev => ({ ...prev, [item.id?.toString() || '']: item.remarks || '' }));
-                      }
-                      }}
-                      style={{
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.15,
-                      shadowRadius: 4,
-                      elevation: 3,
-                      }}
+                  <LinearGradient
+                    colors={['#0E7490', '#0891B2', '#06B6D4']} 
+                    style={[
+                      styles.profileCircle,
+                      screenDimensions.isSmallScreen && styles.profileCircleSmall,
+                      screenDimensions.isLargeScreen && styles.profileCircleLarge
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                   >
-                      <LinearGradient
-                      colors={editingRemarks[item.id?.toString() || ''] ? ['#166534', '#15803D', '#22C55E'] : ['#92400E', '#A16207', '#D97706']}
-                      style={{
-                          paddingHorizontal: 16,
-                          paddingVertical: 10,
-                          borderRadius: 12,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                      }}
+                    <Text style={[
+                      styles.profileInitial,
+                      screenDimensions.isSmallScreen && styles.profileInitialSmall,
+                      screenDimensions.isLargeScreen && styles.profileInitialLarge
+                    ]}>
+                      {item.name ? item.name.charAt(0).toUpperCase() : '?'}
+                    </Text>
+                    <Animated.View style={[
+                      styles.profileHalo,
+                      {
+                        opacity: sparkleAnim,
+                        transform: [{ scale: sparkleAnim }],
+                      }
+                    ]} />
+                  </LinearGradient>
+                </Animated.View>
+                <View style={styles.headerInfo}>
+                  <Text style={[
+                    styles.recordTitle,
+                    screenDimensions.isSmallScreen && styles.recordTitleSmall,
+                    screenDimensions.isLargeScreen && styles.recordTitleLarge
+                  ]}>{item.name || 'Unknown'}</Text>
+                  <View style={styles.idContainer}>
+                    <LinearGradient
+                      colors={['#0f0c29', '#302b63', '#24243e']}
+                      style={styles.idBadge}
+                    >
+                      <Text style={[
+                          styles.recordSubtitle,
+                          screenDimensions.isSmallScreen && styles.recordSubtitleSmall,
+                          screenDimensions.isLargeScreen && styles.recordSubtitleLarge
+                      ]}>
+                          {['COMDT', 'comdt', '2IC', '2ic', 'DC', 'dc', 'AC', 'ac'].includes(item.rank?.toLowerCase()) 
+                          ? `IRLA No: ${item.personnel_id || 'No ID'}`
+                          : `Regt ID: ${item.personnel_id || 'No ID'}`
+                          }
+                      </Text>
+                    </LinearGradient>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.recordHeaderRight}>
+                <LinearGradient
+                  colors={['#F8FAFC', '#F1F5F9', '#E2E8F0']}
+                  style={styles.serialBadge}
+                >
+                  <Text style={[
+                    styles.serialText,
+                    screenDimensions.isLargeScreen && styles.serialTextLarge
+                  ]}>#{item.serial_no || '-'}</Text>
+                </LinearGradient>
+                <LinearGradient
+                  colors={['#5f2c82', '#49a09d', '#3f2b96']}
+                  style={styles.rankBadge}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={[
+                    styles.rankText,
+                    screenDimensions.isLargeScreen && styles.rankTextLarge
+                  ]}>{item.rank || '-'}</Text>
+                </LinearGradient>
+              </View>
+            </View>
+
+            <View style={styles.medicalStatusContainer}>
+              <View style={styles.awardedCategorySection}>
+                <View style={styles.categoryHeader}>
+                  <LinearGradient
+                    colors={['#FFD700', '#B8860B', '#000000']}
+                    style={styles.categoryIconContainer}
+                  >
+                    <Text style={styles.categoryIcon}>📊</Text>
+                  </LinearGradient>
+                  <Text style={[
+                    styles.awardedLabel,
+                    screenDimensions.isSmallScreen && styles.awardedLabelSmall,
+                    screenDimensions.isLargeScreen && styles.awardedLabelLarge,
+                  ]}>
+                    Category Allotment Dates
+                  </Text>
+                </View>
+                <View style={styles.datesContainer}>
+                  {categoryDates.length > 0 ? categoryDates.map((date, idx) => (
+                    <LinearGradient
+                      key={idx}
+                      colors={['#FFD700', '#B8860B', '#000000']}
+                      style={[styles.awardedBadge, styles.modernBadge]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      >
-                      <Text style={{ 
-                          color: '#FFFFFF', 
-                          fontSize: 13, 
-                          fontWeight: '600',
-                          marginRight: 6,
-                      }}>
-                          {editingRemarks[item.id?.toString() || ''] ? 'Save' : 'Edit'}
-                      </Text>
-                      <Text style={{ color: '#FFFFFF', fontSize: 14 }}>
-                          {editingRemarks[item.id?.toString() || ''] ? '💾' : '✏️'}
-                      </Text>
-                      </LinearGradient>
-                  </TouchableOpacity>
-                  </View>
-                  
-                  {editingRemarks[item.id?.toString() || ''] ? (
-                  <View style={{
-                      backgroundColor: '#FFFFFF',
-                      borderRadius: 12,
-                      borderWidth: 2,
-                      borderColor: '#166534',
-                      shadowColor: '#166534',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.1,
-                      shadowRadius: 4,
-                      elevation: 2,
-                  }}>
-                      <TextInput
-                      style={[
-                          styles.footerValue,
-                          screenDimensions.isSmallScreen && styles.footerValueSmall,
-                          screenDimensions.isLargeScreen && styles.footerValueLarge,
-                          {
-                          padding: 16,
-                          minHeight: 100,
-                          maxHeight: 200,
-                          textAlignVertical: 'top',
-                          color: '#1F2937',
-                          fontSize: screenDimensions.isSmallScreen ? 14 : screenDimensions.isLargeScreen ? 18 : 16,
-                          lineHeight: 24,
-                          fontWeight: '500',
-                          },
-                      ]}
-                      value={tempRemarks[item.id?.toString() || ''] || ''}
-                      onChangeText={(text) => setTempRemarks(prev => ({ ...prev, [item.id?.toString() || '']: text }))}
-                      placeholder="Enter detailed medical remarks, observations, or recommendations..."
-                      multiline
-                      numberOfLines={6}
-                      placeholderTextColor="#9CA3AF"
-                      selectionColor="#166534"
-                      />
-                  </View>
-                  ) : (
-                  <View style={{
-                      backgroundColor: item.remarks && item.remarks !== '-' ? '#F0FDF4' : '#F9FAFB',
-                      borderRadius: 12,
-                      padding: 16,
-                      borderWidth: 1,
-                      borderColor: item.remarks && item.remarks !== '-' ? '#D1FAE5' : '#E5E7EB',
-                      minHeight: 80,
-                  }}>
+                    >
                       <Text style={[
-                      styles.footerValue,
-                      screenDimensions.isSmallScreen && styles.footerValueSmall,
-                      screenDimensions.isLargeScreen && styles.footerValueLarge,
-                      { 
-                          textAlign: 'left',
-                          color: item.remarks && item.remarks !== '-' ? '#1F2937' : '#9CA3AF',
-                          fontSize: screenDimensions.isSmallScreen ? 14 : screenDimensions.isLargeScreen ? 18 : 16,
-                          lineHeight: 24,
-                          fontWeight: item.remarks && item.remarks !== '-' ? '500' : '400',
-                          fontStyle: item.remarks && item.remarks !== '-' ? 'normal' : 'italic',
-                      },
+                        styles.awardedText,
+                        screenDimensions.isSmallScreen && styles.awardedTextSmall,
+                        screenDimensions.isLargeScreen && styles.awardedTextLarge,
                       ]}>
-                      {item.remarks && item.remarks !== '-' ? item.remarks : 'No medical remarks recorded yet. Click Edit to add observations, treatment notes, or recommendations.'}
+                        {date}
                       </Text>
-                  </View>
+                    </LinearGradient>
+                  )) : (
+                    <LinearGradient
+                      colors={['#64748B', '#94A3B8', '#CBD5E1']}
+                      style={[styles.awardedBadge, styles.modernBadge]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={[
+                        styles.awardedText,
+                        screenDimensions.isSmallScreen && styles.awardedTextSmall,
+                        screenDimensions.isLargeScreen && styles.awardedTextLarge,
+                      ]}>
+                        No dates recorded
+                      </Text>
+                    </LinearGradient>
                   )}
-              </LinearGradient>
+                </View>
               </View>
-        </LinearGradient>
-      </Animated.View>
+            </View>
+
+            <View style={styles.detailsContainer}>
+              <View style={[
+                styles.detailsGrid,
+                screenDimensions.isSmallScreen && styles.detailsGridSmall,
+                screenDimensions.isLargeScreen && styles.detailsGridLarge
+              ]}>
+                {[
+                  { icon: '🩺', label: 'Disease/Reason', value: item.disease_reason || '-', gradient: ['#DC2626', '#EF4444', '#F87171'] },
+                  { icon: '📅', label: 'Last Board Date', value: formatDate(item.last_medical_board_date), gradient: ['#FF0080', '#7928CA', '#2E1A47'] },
+                  { icon: '⏰', label: 'Due Date', value: formatDate(item.medical_board_due_date), gradient: ['#00F260', '#0575E6', '#021B79'] },
+                  { icon: '🏥', label: 'Medical Category', value: item.medical_category || '-', gradient: ['#C2410C', '#EA580C', '#F97316'] },
+                ].map((detail, detailIndex) => (
+                  <LinearGradient
+                    key={detailIndex}
+                    colors={detail.gradient as [string, string, string]}
+                    style={[
+                      styles.detailCard,
+                      styles.modernCard,
+                      screenDimensions.isSmallScreen && styles.detailCardSmall,
+                      screenDimensions.isLargeScreen && styles.detailCardLarge
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={styles.cardContent}>
+                      <Text style={[
+                        styles.detailIcon,
+                        screenDimensions.isSmallScreen && styles.detailIconSmall,
+                        screenDimensions.isLargeScreen && styles.detailIconLarge
+                      ]}>{detail.icon}</Text>
+                      <Text style={[
+                        styles.detailLabel,
+                        screenDimensions.isSmallScreen && styles.detailLabelSmall,
+                        screenDimensions.isLargeScreen && styles.detailLabelLarge
+                      ]}>{detail.label}</Text>
+                      <Text style={[
+                        styles.detailValue,
+                        screenDimensions.isSmallScreen && styles.detailValueSmall,
+                        screenDimensions.isLargeScreen && styles.detailValueLarge
+                      ]}>{detail.value}</Text>
+                    </View>
+                    <View style={styles.cardGlow} />
+                  </LinearGradient>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.recordFooter}>
+                <LinearGradient
+                    colors={['#E2E8F0', '#CBD5E1', '#94A3B8']}
+                    style={[styles.footerDivider, { height: 3, marginVertical: 20 }]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                />
+                
+                <LinearGradient
+                    colors={['#FAFBFC', '#F8FAFC', '#F1F5F9']}
+                    style={[
+                    styles.remarksContainer,
+                    {
+                        borderRadius: 20,
+                        padding: 24,
+                        marginBottom: 8,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 8 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 16,
+                        elevation: 8,
+                    }
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                >
+                    <View style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    marginBottom: 18 
+                    }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <LinearGradient
+                        colors={['#6366F1', '#8B5CF6', '#A855F7']}
+                        style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 18,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: 12,
+                        }}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        >
+                        <Text style={{ fontSize: 18 }}>📝</Text>
+                        </LinearGradient>
+                        <Text style={[
+                        styles.footerLabel,
+                        screenDimensions.isSmallScreen && styles.footerLabelSmall,
+                        screenDimensions.isLargeScreen && styles.footerLabelLarge,
+                        { 
+                            fontWeight: '800',
+                            color: '#1E293B',
+                            fontSize: screenDimensions.isSmallScreen ? 17 : screenDimensions.isLargeScreen ? 21 : 19,
+                        },
+                        ]}>
+                        Medical Remarks
+                        </Text>
+                    </View>
+                    
+                    <TouchableOpacity
+                        onPress={() => {
+                        if (editingRemarks[item.id?.toString() || '']) {
+                            handleRemarksEdit(item.id?.toString() || '', tempRemarks[item.id?.toString() || ''] || item.remarks || '');
+                        } else {
+                            setEditingRemarks(prev => ({ ...prev, [item.id?.toString() || '']: true }));
+                            setTempRemarks(prev => ({ ...prev, [item.id?.toString() || '']: item.remarks || '' }));
+                        }
+                        }}
+                        style={{
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6,
+                        }}
+                    >
+                        <LinearGradient
+                        colors={editingRemarks[item.id?.toString() || ''] ? ['#059669', '#10B981', '#34D399'] : ['#3a1c71', '#A7BAC9', '#666']}
+                        style={{
+                            paddingHorizontal: 18,
+                            paddingVertical: 12,
+                            borderRadius: 16,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                        }}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        >
+                        <Text style={{ 
+                            color: '#FFFFFF', 
+                            fontSize: 14, 
+                            fontWeight: '700',
+                            marginRight: 8,
+                        }}>
+                            {editingRemarks[item.id?.toString() || ''] ? 'Save' : 'Edit'}
+                        </Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 16 }}>
+                            {editingRemarks[item.id?.toString() || ''] ? '💾' : '✏️'}
+                        </Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                    </View>
+                    
+                    {editingRemarks[item.id?.toString() || ''] ? (
+                    <LinearGradient
+                        colors={['#FFFFFF', '#FEFEFE']}
+                        style={{
+                        borderRadius: 16,
+                        borderWidth: 2,
+                        borderColor: '#10B981',
+                        shadowColor: '#059669',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.15,
+                        shadowRadius: 8,
+                        elevation: 4,
+                        }}
+                    >
+                        <TextInput
+                        style={[
+                            styles.footerValue,
+                            screenDimensions.isSmallScreen && styles.footerValueSmall,
+                            screenDimensions.isLargeScreen && styles.footerValueLarge,
+                            {
+                            padding: 20,
+                            minHeight: 120,
+                            maxHeight: 220,
+                            textAlignVertical: 'top',
+                            color: '#1E293B',
+                            fontSize: screenDimensions.isSmallScreen ? 15 : screenDimensions.isLargeScreen ? 19 : 17,
+                            lineHeight: 26,
+                            fontWeight: '500',
+                            },
+                        ]}
+                        value={tempRemarks[item.id?.toString() || ''] || ''}
+                        onChangeText={(text) => setTempRemarks(prev => ({ ...prev, [item.id?.toString() || '']: text }))}
+                        placeholder="Enter detailed medical remarks, observations, or recommendations..."
+                        multiline
+                        numberOfLines={6}
+                        placeholderTextColor="#94A3B8"
+                        selectionColor="#10B981"
+                        />
+                    </LinearGradient>
+                    ) : (
+                    <LinearGradient
+                        colors={item.remarks && item.remarks !== '-' ? ['#F0FDF4', '#ECFDF5'] : ['#F8FAFC', '#F1F5F9']}
+                        style={{
+                        borderRadius: 16,
+                        padding: 20,
+                        borderWidth: 2,
+                        borderColor: item.remarks && item.remarks !== '-' ? '#A7F3D0' : '#E2E8F0',
+                        minHeight: 100,
+                        }}
+                    >
+                        <Text style={[
+                        styles.footerValue,
+                        screenDimensions.isSmallScreen && styles.footerValueSmall,
+                        screenDimensions.isLargeScreen && styles.footerValueLarge,
+                        { 
+                            textAlign: 'left',
+                            color: item.remarks && item.remarks !== '-' ? '#1E293B' : '#94A3B8',
+                            fontSize: screenDimensions.isSmallScreen ? 15 : screenDimensions.isLargeScreen ? 19 : 17,
+                            lineHeight: 26,
+                            fontWeight: item.remarks && item.remarks !== '-' ? '500' : '400',
+                            fontStyle: item.remarks && item.remarks !== '-' ? 'normal' : 'italic',
+                        },
+                        ]}>
+                        {item.remarks && item.remarks !== '-' ? item.remarks : 'No medical remarks recorded yet. Click Edit to add observations, treatment notes, or recommendations.'}
+                        </Text>
+                    </LinearGradient>
+                    )}
+                </LinearGradient>
+                </View>
+          </LinearGradient>
+        </Animated.View>
+      </LinearGradient>
     );
   };
 
@@ -730,196 +664,287 @@ export default function LMCStatViewer() {
       },
     ]}>
       <LinearGradient
-        colors={['#F8FAFC', '#F1F5F9', '#E2E8F0']}
+        colors={['#FFFFFF', '#FEFEFE', '#FDFDFD']}
         style={styles.emptyGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
         <Animated.View style={[
-          styles.emptyIconContainer,
+          styles.floatingIcon,
           {
-            transform: [
-              {
-                translateY: floatAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -20],
-                }),
-              },
-              { scale: pulseAnim },
-            ],
-          },
+            transform: [{
+              translateY: floatAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -8],
+              })
+            }, {
+              rotate: rotateAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0deg', '360deg'],
+              })
+            }],
+          }
         ]}>
-          <Text style={styles.emptyIcon}>🏥</Text>
+          <LinearGradient
+            colors={['#6366F1', '#8B5CF6', '#A855F7']}
+            style={styles.iconContainer}
+          >
+            <Text style={styles.emptyIcon}>🏥</Text>
+          </LinearGradient>
         </Animated.View>
         
-        <Text style={styles.emptyTitle}>No LMC Records Found</Text>
-        <Text style={styles.emptySubtitle}>
-          {searchQuery ? 'Try adjusting your search criteria' : 'No Low Medical Category records available'}
+        <Text style={[
+          styles.emptyTitle,
+          screenDimensions.isSmallScreen && styles.emptyTitleSmall,
+          screenDimensions.isLargeScreen && styles.emptyTitleLarge
+        ]}>
+          No LMC Records Found
         </Text>
         
-        <TouchableOpacity
-          style={styles.emptyButton}
-          onPress={() => {
-            setSearchQuery('');
-            loadLMCRecords();
-          }}
-        >
-          <LinearGradient
-            colors={['#1F2937', '#374151', '#4B5563']}
-            style={styles.emptyButtonGradient}
-          >
-            <Text style={styles.emptyButtonText}>
-              {searchQuery ? 'Clear Search' : 'Refresh'}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        <Text style={[
+          styles.emptyMessage,
+          screenDimensions.isSmallScreen && styles.emptyMessageSmall,
+          screenDimensions.isLargeScreen && styles.emptyMessageLarge
+        ]}>
+          {searchQuery ? 
+            `No records match "${searchQuery}". Try adjusting your search terms.` :
+            'No Low Medical Category records have been added yet.'
+          }
+        </Text>
       </LinearGradient>
     </Animated.View>
   );
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1F2937" />
+    <LinearGradient
+      colors={['#DC2626', '#EF4444', '#F87171', '#FCA5A5']}
+      style={styles.container}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       <LinearGradient
-        colors={['#1F2937', '#374151', '#4B5563']}
-        style={styles.header}
+        colors={['#FEF2F2', '#FEE2E2', '#FECACA', '#F87171']}
+        style={styles.headerContainer}
       >
         <Animated.View style={[
           styles.headerContent,
           {
-            transform: [
-              { translateY: slideAnim },
-              { scale: scaleAnim },
-            ],
+            transform: [{ translateY: slideAnim }],
             opacity: fadeAnim,
-          },
+          }
         ]}>
           <TouchableOpacity
+            onPress={() => (navigation as any).navigate('DashboardDoctor')}
             style={styles.backButton}
-            onPress={() => navigation.navigate('DashboardDoctor')}
           >
             <LinearGradient
-              colors={['#374151', '#4B5563']}
+              colors={['#F8FAFC', '#E2E8F0']}
               style={styles.backButtonGradient}
             >
-              <Icon name="arrow-left" size={24} color="#FFFFFF" />
+              <Icon name="arrow-left" size={24} color="#1E293B" />
             </LinearGradient>
           </TouchableOpacity>
           
           <View style={styles.headerTextContainer}>
-            <Animated.Text style={[
+            <Text style={[
               styles.headerTitle,
-              {
-                transform: [
-                  {
-                    translateY: sparkleAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -5],
-                    }),
-                  },
-                ],
-              },
+              screenDimensions.isSmallScreen && styles.headerTitleSmall,
+              screenDimensions.isLargeScreen && styles.headerTitleLarge
             ]}>
-              LMC Statistics
-            </Animated.Text>
-            <Text style={styles.headerSubtitle}>
-              Low Medical Category Records
+              Low Medical Category Overview 
+            </Text>
+            <Text style={[
+              styles.headerSubtitle,
+              screenDimensions.isSmallScreen && styles.headerSubtitleSmall,
+              screenDimensions.isLargeScreen && styles.headerSubtitleLarge
+            ]}>
+              {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''} found
             </Text>
           </View>
-          
-          <Animated.View style={[
-            styles.headerStats,
-            {
-              transform: [{ scale: pulseAnim }],
-            },
-          ]}>
-            <LinearGradient
-              colors={['#166534', '#15803D']}
-              style={styles.statsContainer}
-            >
-              <Text style={styles.statsNumber}>{filteredRecords.length}</Text>
-              <Text style={styles.statsLabel}>Records</Text>
-            </LinearGradient>
-          </Animated.View>
+        </Animated.View>
+
+        <Animated.View style={[
+          styles.searchContainer,
+          {
+            transform: [{ scale: scaleAnim }],
+            opacity: fadeAnim,
+          }
+        ]}>
+          <LinearGradient
+            colors={['#FFFFFF', '#FEFEFE']}
+            style={styles.searchGradient}
+          >
+            <Icon name="magnify" size={20} color="#94A3B8" style={styles.searchIcon} />
+            <TextInput
+              style={[
+                styles.searchInput,
+                screenDimensions.isSmallScreen && styles.searchInputSmall,
+                screenDimensions.isLargeScreen && styles.searchInputLarge
+              ]}
+              placeholder="Search by name, ID, rank, category..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#94A3B8"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Icon name="close-circle" size={20} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+          </LinearGradient>
         </Animated.View>
       </LinearGradient>
 
-      <Animated.View style={[
-        styles.searchContainer,
-        {
-          transform: [{ translateY: slideAnim }],
-          opacity: fadeAnim,
-        },
-      ]}>
-        <LinearGradient
-          colors={['#F8FAFC', '#F1F5F9']}
-          style={styles.searchGradient}
-        >
-          <View style={styles.searchInputContainer}>
-            <Icon name="magnify" size={20} color="#6B7280" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search by name, ID, rank, category, disease..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#9CA3AF"
-            />
-            {searchQuery ? (
-              <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                style={styles.clearButton}
-              >
-                <Icon name="close-circle" size={20} color="#6B7280" />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </LinearGradient>
-      </Animated.View>
-
-      <Animated.View style={[
-        styles.listContainer,
-        {
-          opacity: fadeAnim,
-        },
-      ]}>
-        <FlatList
-          data={filteredRecords}
-          renderItem={renderRecordItem}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={renderEmptyState}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-          removeClippedSubviews={true}
-          getItemLayout={(data, index) => ({
-            length: screenDimensions.isSmallScreen ? 400 : screenDimensions.isLargeScreen ? 600 : 500,
-            offset: (screenDimensions.isSmallScreen ? 400 : screenDimensions.isLargeScreen ? 600 : 500) * index,
-            index,
-          })}
-        />
-      </Animated.View>
-    </View>
+      <FlatList
+        data={filteredRecords}
+        renderItem={renderRecordItem}
+        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        style={styles.listContainer}
+        contentContainerStyle={[
+          styles.listContent,
+          filteredRecords.length === 0 && styles.emptyListContent
+        ]}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={renderEmptyState}
+        ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
+      />
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+  recordItemWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+    marginBottom: 8,
+    width: '80%',
+    alignSelf: 'center',
+    borderRadius: 28,
+    padding: 4, 
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginBottom: 20,
+    justifyContent: 'center',
+    width: '100%',
+  },
+  headerTextContainer: {
+    flex: 1,
+    alignItems: 'center', 
+  },
+  headerTitle: {
+    fontSize: 32, 
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  headerTitleSmall: { 
+    fontSize: 28 
+  },
+  headerTitleLarge: { 
+    fontSize: 36 
+  },
+  headerSubtitle: {
+    fontSize: 18, 
+    color: '#3B82F6', 
+    fontWeight: '600', 
+    textAlign: 'center',
+  },
+  headerSubtitleSmall: { 
+    fontSize: 16
+  },
+  headerSubtitleLarge: { 
+    fontSize: 20 
+  },
+  searchContainer: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+    width: '80%', 
+    alignSelf: 'center', 
   },
   backButton: {
-    marginRight: 16,
+    position: 'absolute', 
+    left: 0,
+    zIndex: 10, 
+  },
+  listContent: {
+    padding: 20,
+    alignItems: 'center', 
+  },
+  medicalStatusContainer: {
+    marginBottom: 20,
+    alignItems: 'center', 
+  },
+  awardedCategorySection: {
+    marginBottom: 16,
+    alignItems: 'center', 
+  },
+  datesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center', 
+  },
+  recordItem: {
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  detailCard: {
+    flex: 1,
+    width: '48%',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+    position: 'relative',
+    overflow: 'hidden',
+    alignSelf: 'center', 
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+    alignItems: 'center', 
+  },
+  emptyGradient: {
+    borderRadius: 24,
+    padding: 40,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    width: '80%', 
+    alignSelf: 'center', 
+  },
+  container: {
+    flex: 1,
+  },
+  headerContainer: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   backButtonGradient: {
     width: 44,
@@ -927,65 +952,20 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-  },
-  headerTextContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#D1D5DB',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  headerStats: {
-    marginLeft: 16,
-  },
-  statsContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    minWidth: 60,
-  },
-  statsNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  statsLabel: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    elevation: 4,
   },
   searchGradient: {
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   searchIcon: {
     marginRight: 12,
@@ -993,502 +973,364 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#1F2937',
+    color: '#1E293B',
+    fontWeight: '500',
   },
-  clearButton: {
-    marginLeft: 8,
-  },
+  searchInputSmall: { fontSize: 14 },
+  searchInputLarge: { fontSize: 18 },
   listContainer: {
     flex: 1,
   },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
-  recordItem: {
-    marginBottom: 20,
-    borderRadius: 20,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+  itemSeparator: {
+    height: 16,
   },
   recordItemSmall: {
-    marginBottom: 16,
-    borderRadius: 16,
+    marginBottom: 6,
   },
   recordItemLarge: {
-    marginBottom: 24,
-    borderRadius: 24,
+    marginBottom: 12,
   },
   recordItemXLarge: {
-    marginBottom: 28,
-    borderRadius: 28,
+    marginBottom: 16,
   },
   recordGradient: {
-    borderRadius: 20,
-    padding: 20,
-  },
-  recordGradientSmall: {
-    borderRadius: 16,
-    padding: 16,
-  },
-  recordGradientLarge: {
     borderRadius: 24,
     padding: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  recordGradientSmall: {
+    borderRadius: 20,
+    padding: 18,
+  },
+  recordGradientLarge: {
+    borderRadius: 28,
+    padding: 28,
+  },
+  shineOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
   },
   recordHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   recordHeaderSmall: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   recordHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
+  recordHeaderRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
   profileCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    marginRight: 16,
+    position: 'relative',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   profileCircleSmall: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: 12,
   },
   profileCircleLarge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 14,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginRight: 20,
   },
   profileInitial: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
-  profileInitialSmall: {
-    fontSize: 16,
-  },
-  profileInitialLarge: {
-    fontSize: 24,
+  profileInitialSmall: { fontSize: 20 },
+  profileInitialLarge: { fontSize: 28 },
+  profileHalo: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.3,
   },
   headerInfo: {
     flex: 1,
   },
   recordTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  recordTitleSmall: {
-    fontSize: 16,
-  },
-  recordTitleLarge: {
     fontSize: 20,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 6,
   },
+  recordTitleSmall: { fontSize: 18 },
+  recordTitleLarge: { fontSize: 24 },
   idContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  idBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
   recordSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  recordSubtitleSmall: {
-    fontSize: 12,
-  },
-  recordSubtitleLarge: {
-    fontSize: 16,
-  },
-  recordHeaderRight: {
-    alignItems: 'flex-end',
-  },
-  serialBadge: {
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  serialText: {
-    fontSize: 12,
-    color: '#4B5563',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
-  serialTextLarge: {
-    fontSize: 14,
-  },
-  rankBadge: {
+  recordSubtitleSmall: { fontSize: 12 },
+  recordSubtitleLarge: { fontSize: 16 },
+  serialBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-  },
-  rankText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  rankTextLarge: {
-    fontSize: 14,
-  },
-  quickInfoPills: {
-    marginBottom: 20,
-  },
-  quickInfoPillsSmall: {
-    marginBottom: 16,
-  },
-  infoPill: {
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  infoPillSmall: {
-    borderRadius: 10,
-    padding: 10,
-  },
-  infoPillLarge: {
-    borderRadius: 14,
-    padding: 14,
-  },
-  pillIcon: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  pillIconSmall: {
-    fontSize: 14,
-  },
-  pillIconLarge: {
-    fontSize: 18,
-  },
-  pillLabel: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  pillLabelSmall: {
-    fontSize: 9,
-  },
-  pillLabelLarge: {
-    fontSize: 11,
-  },
-  pillValue: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  pillValueSmall: {
-    fontSize: 11,
-  },
-  pillValueLarge: {
-    fontSize: 13,
-  },
-  medicalStatusContainer: {
-    marginBottom: 20,
-  },
-  medicalStatusBar: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 4,
   },
-  medicalStatusBarSmall: {
-    borderRadius: 12,
-    padding: 12,
-  },
-  medicalStatusBarLarge: {
-    borderRadius: 18,
-    padding: 18,
-  },
-  statusSection: {
-    alignItems: 'center',
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginBottom: 8,
-  },
-  statusLabelSmall: {
-    fontSize: 10,
-  },
-  statusLabelLarge: {
+  serialText: {
     fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
   },
-  statusBadge: {
+  serialTextLarge: { fontSize: 16 },
+  rankBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 12,
-    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  statusText: {
-    fontSize: 12,
+  rankText: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#FFFFFF',
-    fontWeight: 'bold',
   },
-  statusTextSmall: {
-    fontSize: 10,
-  },
-  statusTextLarge: {
-    fontSize: 14,
-  },
-  statusArrow: {
-    marginHorizontal: 20,
-  },
-  arrowContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  rankTextLarge: { fontSize: 16 },
+  categoryHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-  },
-  arrowText: {
-    fontSize: 16,
-  },
-  arrowTextSmall: {
-    fontSize: 14,
-  },
-  arrowTextLarge: {
-    fontSize: 18,
-  },
-  awardedCategorySection: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  awardedLabel: {
-    fontSize: 14,
-    color: '#4B5563',
-    fontWeight: '600',
     marginBottom: 12,
   },
-  awardedLabelSmall: {
-    fontSize: 12,
+  categoryIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  awardedLabelLarge: {
+  categoryIcon: {
     fontSize: 16,
   },
+  awardedLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  awardedLabelSmall: { fontSize: 14 },
+  awardedLabelLarge: { fontSize: 18 },
   awardedBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernBadge: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   awardedText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  awardedTextSmall: {
-    fontSize: 10,
-  },
-  awardedTextLarge: {
     fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
+  awardedTextSmall: { fontSize: 12 },
+  awardedTextLarge: { fontSize: 16 },
   detailsContainer: {
     marginBottom: 20,
   },
-  detailsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
   detailsGridSmall: {
-    marginBottom: 16,
+    gap: 8,
   },
   detailsGridLarge: {
-    marginBottom: 24,
-  },
-  detailCard: {
-    width: '48%',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    gap: 16,
   },
   detailCardSmall: {
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 12,
+    minWidth: '48%',
   },
   detailCardLarge: {
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 20,
+    minWidth: '42%',
+  },
+  modernCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  cardContent: {
+    padding: 16,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  cardGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 1,
   },
   detailIcon: {
-    fontSize: 16,
-    marginBottom: 6,
+    fontSize: 24,
+    marginBottom: 8,
   },
-  detailIconSmall: {
-    fontSize: 14,
-  },
-  detailIconLarge: {
-    fontSize: 18,
-  },
+  detailIconSmall: { fontSize: 20 },
+  detailIconLarge: { fontSize: 28 },
   detailLabel: {
-    fontSize: 10,
+    fontSize: 12,
+    fontWeight: '600',
     color: '#FFFFFF',
     opacity: 0.9,
     marginBottom: 4,
     textAlign: 'center',
   },
-  detailLabelSmall: {
-    fontSize: 9,
-  },
-  detailLabelLarge: {
-    fontSize: 11,
-  },
+  detailLabelSmall: { fontSize: 10 },
+  detailLabelLarge: { fontSize: 14 },
   detailValue: {
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: '800',
     color: '#FFFFFF',
-    fontWeight: 'bold',
     textAlign: 'center',
   },
-  detailValueSmall: {
-    fontSize: 11,
-  },
-  detailValueLarge: {
-    fontSize: 13,
-  },
+  detailValueSmall: { fontSize: 12 },
+  detailValueLarge: { fontSize: 16 },
   recordFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingTop: 16,
+    marginTop: 8,
   },
   footerDivider: {
-    borderRadius: 1,
+    borderRadius: 2,
   },
   remarksContainer: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
   },
   footerLabel: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#374151',
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 12,
   },
-  footerLabelSmall: {
-    fontSize: 14,
-  },
-  footerLabelLarge: {
-    fontSize: 18,
-  },
+  footerLabelSmall: { fontSize: 14 },
+  footerLabelLarge: { fontSize: 18 },
   footerValue: {
-    fontSize: 14,
-    color: '#4B5563',
-    lineHeight: 20,
-  },
-  footerValueSmall: {
-    fontSize: 12,
-  },
-  footerValueLarge: {
     fontSize: 16,
+    color: '#64748B',
+    fontWeight: '500',
+    lineHeight: 24,
   },
+  footerValueSmall: { fontSize: 14 },
+  footerValueLarge: { fontSize: 18 },
   emptyContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  floatingIcon: {
+    marginBottom: 24,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
-  },
-  emptyGradient: {
-    borderRadius: 20,
-    padding: 40,
-    alignItems: 'center',
-    width: '100%',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  emptyIconContainer: {
-    marginBottom: 20,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
   },
   emptyIcon: {
-    fontSize: 60,
+    fontSize: 36,
   },
   emptyTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: '800',
+    color: '#1E293B',
     marginBottom: 12,
     textAlign: 'center',
   },
-  emptySubtitle: {
+  emptyTitleSmall: { fontSize: 20 },
+  emptyTitleLarge: { fontSize: 28 },
+  emptyMessage: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#64748B',
     textAlign: 'center',
-    marginBottom: 30,
     lineHeight: 24,
+    marginBottom: 32,
   },
-  emptyButton: {
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+  emptyMessageSmall: { fontSize: 14 },
+  emptyMessageLarge: { fontSize: 18 },
+  addButton: {
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
   },
-  emptyButtonGradient: {
+  addButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 16,
+    borderRadius: 16,
   },
-  emptyButtonText: {
+  addButtonText: {
     fontSize: 16,
+    fontWeight: '700',
     color: '#FFFFFF',
-    fontWeight: 'bold',
+    marginLeft: 8,
   },
 });

@@ -129,7 +129,13 @@ export default function AMERecords() {
   const loadAMERecords = async () => {
     try {
       const records = await getAMERecords();
-      setAMERecords(records);
+      
+      const sortedRecords = records.sort((a, b) => {
+        const serialA = Number(a.s_no) || 0;
+        const serialB = Number(b.s_no) || 0;
+        return serialA - serialB;
+      });
+      setAMERecords(sortedRecords);
     } catch (error) {
       console.error('Error loading AME records:', error);
       Alert.alert('Error', 'Failed to load AME records');
@@ -186,9 +192,8 @@ export default function AMERecords() {
         'Vision',
         'Previous Medical Category',
         'Date of AME',
-        'Present Category',
-        'Awarded Category',
-        'Reason',
+        'Present Category Awarded',
+        'Category Reason',
         'Remarks'
       ];
 
@@ -356,7 +361,7 @@ export default function AMERecords() {
       const validatedData = [];
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i] as any;
-      
+
         if (!row['IRLA No./Regt. ID'] && !row['Full Name']) {
           continue;
         }
@@ -373,7 +378,7 @@ export default function AMERecords() {
         }
 
         validatedData.push({
-          serial_no: row['S.No'] || '',
+          serial_no: row['S.No'] || (i + 1), 
           irla_no: row['IRLA No./Regt. ID'] || '',
           rank: row['Rank'] || '',
           full_name: row['Full Name'] || '',
@@ -390,15 +395,21 @@ export default function AMERecords() {
           vision: row['Vision'] || '',
           previous_medical_category: row['Previous Medical Category'] || '',
           date_of_ame: dateOfAME,
-          present_category: row['Present Category'] || '',
-          awarded_category: row['Awarded Category'] || '',
-          reason: row['Reason'] || '',
+          present_category_awarded: row['Present Category Awarded'] || row['Present Category'] || row['Present Medical Category'] || row['Awarded Category'] || '',
+          category_reason: row['Category Reason'] || row['Reason'] || '',
           remarks: row['Remarks'] || '',
           status: 'active',
+          originalIndex: i 
         });
 
         setUploadProgress(30 + (i / jsonData.length) * 50);
       }
+
+      validatedData.sort((a, b) => {
+        const serialA = parseInt(a.serial_no) || a.originalIndex;
+        const serialB = parseInt(b.serial_no) || b.originalIndex;
+        return serialA - serialB;
+      });
 
       let insertedCount = 0;
       for (const record of validatedData) {
@@ -421,8 +432,8 @@ export default function AMERecords() {
             vision: record.vision,
             previous_medical_category: record.previous_medical_category,
             date_of_ame: record.date_of_ame,
-            present_category_awarded: record.present_category,
-            category_reason: record.reason,
+            present_category_awarded: record.present_category_awarded,
+            category_reason: record.category_reason,
             remarks: record.remarks,
           });
           insertedCount++;
@@ -513,7 +524,7 @@ export default function AMERecords() {
         screenDimensions.isSmallScreen && styles.recordItemSmall,
         screenDimensions.isLargeScreen && styles.recordItemLarge,
         screenDimensions.isXLargeScreen && styles.recordItemXLarge,
-        { width: screenDimensions.isXLargeScreen ? "32%" : screenDimensions.isLargeScreen ? "48%" : "90%" },
+        { width: screenDimensions.isXLargeScreen ? "32%" : screenDimensions.isLargeScreen ? "48%" : "80%" },
         {
           transform: [{
             scale: new Animated.Value(1)
@@ -762,14 +773,14 @@ export default function AMERecords() {
               </Text>
               <View style={[
                 styles.statusBadge,
-                { backgroundColor: getCategoryColor(item.present_category) },
+                { backgroundColor: getCategoryColor(item.present_category_awarded) },
               ]}>
                 <Text style={[
                   styles.statusText,
                   screenDimensions.isSmallScreen && styles.statusTextSmall,
                   screenDimensions.isLargeScreen && styles.statusTextLarge,
                 ]}>
-                  {item.present_category || '-'}
+                  {item.present_category_awarded || '-'}
                 </Text>
               </View>
             </View>
@@ -789,7 +800,7 @@ export default function AMERecords() {
               Category Reason:
             </Text>
             <LinearGradient
-              colors={[getCategoryColor(item.awarded_category), `${getCategoryColor(item.awarded_category)}CC`]}
+              colors={[getCategoryColor(item.category_reason), `${getCategoryColor(item.category_reason)}CC`]}
               style={[
                 styles.awardedBadge,
                 screenDimensions.isSmallScreen && styles.awardedBadgeSmall,
@@ -802,7 +813,7 @@ export default function AMERecords() {
                 screenDimensions.isSmallScreen && styles.awardedTextSmall,
                 screenDimensions.isLargeScreen && styles.awardedTextLarge,
               ]}>
-                {item.awarded_category || '-'}
+                {item.category_reason || '-'}
               </Text>
             </LinearGradient>
           </View>
@@ -919,14 +930,7 @@ export default function AMERecords() {
   };
 
   const totalRecords = ameRecords.length;
-  const activeRecords = ameRecords.filter(r => r.status?.toLowerCase() === 'active').length;
-  const dueSoonRecords = ameRecords.filter(r => {
-    if (!r.date_of_ame) return false;
-    const ameDate = new Date(r.date_of_ame);
-    const today = new Date();
-    const monthsDiff = (today.getFullYear() - ameDate.getFullYear()) * 12 + (today.getMonth() - ameDate.getMonth());
-    return monthsDiff >= 11; 
-  }).length;
+  const activeRecords = ameRecords.length;
 
   return (
     <View style={styles.container}>
@@ -1038,7 +1042,6 @@ export default function AMERecords() {
             ]}>
               {renderStatsCard('Total Records', totalRecords, '📊', '#2196F3')}
               {renderStatsCard('Active Records', activeRecords, '🔵', '#1976D2')}
-              {renderStatsCard('Due Soon', dueSoonRecords, '⏰', '#FF9800')}
             </View>
 
             <View style={[
@@ -2628,22 +2631,32 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    width: '80%',
+    alignSelf: 'center',
   },
   searchContainerSmall: {
     paddingHorizontal: 12,
     marginVertical: 12,
+    width: '80%',
+    alignSelf: 'center',
   },
   searchContainerMedium: {
     paddingHorizontal: 16,
     marginVertical: 16,
+    width: '80%',
+    alignSelf: 'center',
   },
   searchContainerLarge: {
     paddingHorizontal: 24,
     marginVertical: 20,
+    width: '80%',
+    alignSelf: 'center',
   },
   searchContainerXLarge: {
     paddingHorizontal: 32,
     marginVertical: 24,
+    width: '80%',
+    alignSelf: 'center',
   },
   searchInput: {
     flex: 1,

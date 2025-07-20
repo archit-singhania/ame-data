@@ -799,6 +799,35 @@ export default function LandingScreen({ navigation }: any) {
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
     },
+    footerSubText: {
+      fontSize: getResponsiveSize({
+        tiny: 5,
+        verySmall: 7,
+        small: 8,
+        regular: 9,
+        large: 10,
+        smallTablet: 10,
+        tablet: 11,
+        largeTablet: 12,
+        xLargeTablet: 13,
+        xxLargeTablet: 14,
+      }),
+      color: 'rgba(255,255,255,0.5)',
+      textAlign: 'center',
+      marginTop: getResponsiveSize({
+        tiny: 2,
+        verySmall: 3,
+        small: 4,
+        regular: 5,
+        large: 6,
+        smallTablet: 6,
+        tablet: 7,
+        largeTablet: 8,
+        xLargeTablet: 9,
+        xxLargeTablet: 10,
+      }),
+      fontStyle: 'italic',
+    }
   });
 
   const renderFloatingElements = () => {
@@ -877,7 +906,7 @@ export default function LandingScreen({ navigation }: any) {
 
       <Video
         ref={videoRef}
-        source={require('../../assets/ame-bg-vid.mp4')}
+        source={{ uri: 'https://storage.googleapis.com/medtrack-media/ame-bg-vid.mp4' }}
         style={styles.backgroundVideo}
         shouldPlay={true}
         isLooping={true}
@@ -1140,15 +1169,7 @@ export default function LandingScreen({ navigation }: any) {
                 }}
               >
                 <TouchableOpacity
-                  // onPress={handleGetStarted}
-                  // onPress={() => navigation.navigate('AMEStatViewer')}
-                  // onPress={() => navigation.navigate('LMCStatViewer')}
-                  // onPress={() => navigation.navigate('ReportsDetailScreen')}
-                  // onPress={() => navigation.navigate('AMEStatus')}
-                  // onPress={() => navigation.navigate('LMCRecords')}
-                  // onPress={() => navigation.navigate('PrescriptionManagement')}
-                  // onPress={() => navigation.navigate('DashboardAdmin')}
-                  onPress={() => navigation.navigate('DashboardDoctor')}
+                  onPress={handleGetStarted}
                   style={{
                     width: '100%',
                     alignItems: 'center',
@@ -1166,6 +1187,9 @@ export default function LandingScreen({ navigation }: any) {
           <View style={dynamicStyles.footer}>
             <Text style={dynamicStyles.footerText}>
               Secure • Efficient • Comprehensive
+            </Text>
+            <Text style={dynamicStyles.footerSubText}>
+              Authored by Archit Singhania, B.Engg, B.A.I, M.A.I
             </Text>
           </View>
         </Animated.View>

@@ -133,19 +133,28 @@ export default function AMEStatViewer() {
   }, []);
 
   useEffect(() => {
+    let filtered;
+    
     if (searchQuery.trim() === '') {
-        setFilteredRecords(ameRecords);
+      filtered = ameRecords;
     } else {
-        const filtered = ameRecords.filter(record => 
+      filtered = ameRecords.filter(record => 
         record.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.personnel_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.rank?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.unit?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.remarks?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-        setFilteredRecords(filtered);
+      );
     }
-    }, [searchQuery, ameRecords]);
+    
+    const sortedFiltered = filtered.sort((a, b) => {
+      const aSerial = parseInt(a.s_no) || 0;
+      const bSerial = parseInt(b.s_no) || 0;
+      return aSerial - bSerial;
+    });
+    
+    setFilteredRecords(sortedFiltered);
+  }, [searchQuery, ameRecords]);
 
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', () => {
@@ -170,42 +179,6 @@ export default function AMEStatViewer() {
       setAMERecords(records);
     } catch (error) {
       console.error('Error loading AME records:', error);
-    }
-  };
-
-  const getRankColor = (rank: string) => {
-    if (!rank) return '#6B7280';
-    const r = rank.toLowerCase();
-    if (r.includes('col') || r.includes('gen')) return '#1F2937';
-    if (r.includes('maj') || r.includes('capt')) return '#374151';
-    if (r.includes('lt')) return '#4B5563';
-    if (r.includes('sub') || r.includes('hav')) return '#6B7280';
-    return '#9CA3AF';
-  };
-
-  const getBMITextColor = (bmi: string) => {
-    if (!bmi || bmi === '-') return '#6B7280';
-    const bmiValue = parseFloat(bmi);
-    if (isNaN(bmiValue)) return '#6B7280';
-    
-    if (bmiValue < 18.5) return '#92400E';
-    if (bmiValue < 25) return '#166534';
-    if (bmiValue < 30) return '#B45309';
-    return '#991B1B';
-  };
-
-  const getCategoryColor = (category: string) => {
-    if (!category || category === '-') return '#6B7280';
-    
-    switch (category?.toLowerCase()) {
-      case 'a1': return '#166534';
-      case 'a2': return '#15803D';
-      case 'b1': return '#92400E';
-      case 'b2': return '#A16207';
-      case 'c1': return '#991B1B';
-      case 'c2': return '#B91C1C';
-      case 'temp': return '#581C87';
-      default: return '#6B7280';
     }
   };
 
@@ -261,18 +234,31 @@ export default function AMEStatViewer() {
                 screenDimensions.isSmallScreen && styles.recordTitleSmall,
                 screenDimensions.isLargeScreen && styles.recordTitleLarge
               ]}>{item.full_name || 'Unknown'}</Text>
-              <View style={styles.idContainer}>
-                <Text style={[
+              <LinearGradient
+                colors={['#666666', '#333333']}
+                style={[
+                  styles.idContainer,
+                  {
+                    width: '30%', 
+                    paddingVertical: screenDimensions.isSmallScreen ? 8 : screenDimensions.isLargeScreen ? 16 : 12,
+                    paddingHorizontal: screenDimensions.isSmallScreen ? 12 : screenDimensions.isLargeScreen ? 24 : 16,
+                    borderRadius: 8,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
                     styles.recordSubtitle,
                     screenDimensions.isSmallScreen && styles.recordSubtitleSmall,
-                    screenDimensions.isLargeScreen && styles.recordSubtitleLarge
-                ]}>
-                    {['COMDT', 'comdt', '2IC', '2ic', 'DC', 'dc', 'AC', 'ac'].includes(item.rank?.toLowerCase()) 
+                    screenDimensions.isLargeScreen && styles.recordSubtitleLarge,
+                    { color: '#fff', textAlign: 'center' }, 
+                  ]}
+                >
+                  {['COMDT', 'comdt', '2IC', '2ic', 'DC', 'dc', 'AC', 'ac'].includes(item.rank?.toLowerCase())
                     ? `IRLA No: ${item.personnel_id || 'No ID'}`
-                    : `Regt ID: ${item.personnel_id || 'No ID'}`
-                    }
+                    : `Regt ID: ${item.personnel_id || 'No ID'}`}
                 </Text>
-                </View>
+              </LinearGradient>
             </View>
           </View>
           <View style={styles.recordHeaderRight}>
@@ -283,7 +269,7 @@ export default function AMEStatViewer() {
               ]}>#{item.s_no || '-'}</Text>
             </View>
             <LinearGradient
-              colors={[getRankColor(item.rank), `${getRankColor(item.rank)}CC`]}
+              colors={['#FFD700', '#B8860B']}
               style={styles.rankBadge}
             >
               <Text style={[
@@ -304,10 +290,10 @@ export default function AMEStatViewer() {
           },
         ]}>
           {[
-            { icon: '🏢', label: 'Coy', value: item.unit || '-', gradient: ['#1F2937', '#374151'] },
-            { icon: '🎂', label: 'Age', value: item.age || '-', gradient: ['#4B5563', '#6B7280'] },
-            { icon: '🩸', label: 'Blood Group', value: item.blood_group || '-', gradient: ['#166534', '#15803D'] },
-            { icon: '⚖️', label: 'BMI', value: item.bmi || '-', isBMI: true, gradient: ['#92400E', '#A16207'] },
+            { icon: '🏢', label: 'Coy', value: item.unit || '-', gradient: ['#2E1437', '#4A0C4E', '#666'] },
+            { icon: '🎂', label: 'Age', value: item.age || '-', gradient: ['#5A3F37', '#2C7744', '#5A3F37'] },
+            { icon: '🩸', label: 'Blood Group', value: item.blood_group || '-', gradient: ['#666', '#FDB813', '#FF5E13', '#666'] },
+            { icon: '⚖️', label: 'BMI', value: item.bmi || '-', isBMI: true, gradient: ['#666', '#F78CA0', '#F9748F', '#FD868C', '#666'] },
           ].map(({ icon, label, value, isBMI, gradient }, index) => (
             <LinearGradient
               key={index}
@@ -340,7 +326,7 @@ export default function AMEStatViewer() {
                 styles.pillValue,
                 screenDimensions.isSmallScreen && styles.pillValueSmall,
                 screenDimensions.isLargeScreen && styles.pillValueLarge,
-                isBMI && { color: getBMITextColor(item.bmi) },
+                isBMI && { color: "#FFFFFF" },
               ]}>
                 {value}
               </Text>
@@ -350,7 +336,7 @@ export default function AMEStatViewer() {
 
         <View style={styles.medicalStatusContainer}>
           <LinearGradient
-            colors={['#166534', '#15803D']}
+            colors={['#141E30', '#243B55']}
             style={[
               styles.medicalStatusBar,
               screenDimensions.isSmallScreen && styles.medicalStatusBarSmall,
@@ -373,7 +359,7 @@ export default function AMEStatViewer() {
               </Text>
               <View style={[
                 styles.statusBadge,
-                { backgroundColor: getCategoryColor(item.previous_medical_category) },
+                { backgroundColor: '#E5E7EB' },
               ]}>
                 <Text style={[
                   styles.statusText,
@@ -410,14 +396,14 @@ export default function AMEStatViewer() {
               </Text>
               <View style={[
                 styles.statusBadge,
-                { backgroundColor: getCategoryColor(item.present_category) },
+                { backgroundColor: '#E5E7EB' },
               ]}>
                 <Text style={[
                   styles.statusText,
                   screenDimensions.isSmallScreen && styles.statusTextSmall,
                   screenDimensions.isLargeScreen && styles.statusTextLarge,
                 ]}>
-                  {item.present_category || '-'}
+                  {item.present_category_awarded || '-'}
                 </Text>
               </View>
             </View>
@@ -432,7 +418,7 @@ export default function AMEStatViewer() {
               Category Reason:
             </Text>
             <LinearGradient
-              colors={[getCategoryColor(item.awarded_category), `${getCategoryColor(item.awarded_category)}CC`]}
+              colors={['#999999', '#666666']}
               style={styles.awardedBadge}
             >
               <Text style={[
@@ -440,7 +426,7 @@ export default function AMEStatViewer() {
                 screenDimensions.isSmallScreen && styles.awardedTextSmall,
                 screenDimensions.isLargeScreen && styles.awardedTextLarge,
               ]}>
-                {item.awarded_category || '-'}
+                {item.category_reason || '-'}
               </Text>
             </LinearGradient>
           </View>
@@ -453,14 +439,14 @@ export default function AMEStatViewer() {
             screenDimensions.isLargeScreen && styles.detailsGridLarge
           ]}>
             {[
-              { icon: '📏', label: 'Height', value: item.height ? `${item.height}cm` : '-', gradient: ['#1F2937', '#374151'] },
-              { icon: '⚖️', label: 'Weight', value: item.weight ? `${item.weight}kg` : '-', gradient: ['#4B5563', '#6B7280'] },
-              { icon: '📐', label: 'Chest', value: item.chest ? `${item.chest}cm` : '-', gradient: ['#166534', '#15803D'] },
-              { icon: '📊', label: 'W/H Ratio', value: item.waist_hip_ratio || '-', gradient: ['#92400E', '#A16207'] },
+              { icon: '📏', label: 'Height', value: item.height ? `${item.height}cm` : '-', gradient: ['#666', '#4DA0B0', '#D39D38', '#666'] },
+              { icon: '⚖️', label: 'Weight', value: item.weight ? `${item.weight}kg` : '-', gradient: ['#2B2B2B', '#D4AF37'] },
+              { icon: '📐', label: 'Chest', value: item.chest ? `${item.chest}cm` : '-', gradient: ['#C33764', '#1D2671'] },
+              { icon: '📊', label: 'W/H Ratio', value: item.waist_hip_ratio || '-', gradient: ['#2BC0E4', '#56ab2f', '#0083B0', '#666'] },
               { icon: '💓', label: 'Pulse', value: item.pulse ? `${item.pulse} bpm` : '-', gradient: ['#991B1B', '#B91C1C'] },
               { icon: '🩸', label: 'BP', value: item.blood_pressure || '-', gradient: ['#581C87', '#7C3AED'] },
-              { icon: '👁️', label: 'Vision', value: item.vision || '-', gradient: ['#1F2937', '#374151'] },
-              { icon: '📅', label: 'AME Date', value: item.date_of_ame || '-', gradient: ['#4B5563', '#6B7280'] },
+              { icon: '👁️', label: 'Vision', value: item.vision || '-', gradient: ['#92400E', '#A16207'] },
+              { icon: '📅', label: 'AME Date', value: item.date_of_ame || '-', gradient: ['#0F2027', '#203A43', '#2C5364'] },
             ].map((detail, index) => (
               <LinearGradient
                 key={index}
@@ -565,7 +551,7 @@ export default function AMEStatViewer() {
                     }}
                 >
                     <LinearGradient
-                    colors={editingRemarks[item.id] ? ['#166534', '#15803D', '#22C55E'] : ['#92400E', '#A16207', '#D97706']}
+                    colors={editingRemarks[item.id] ? ['#166534', '#15803D', '#22C55E'] : ['#FDC830', '#666', '#FF4E50', '#F37335', '#666']}
                     style={{
                         paddingHorizontal: 16,
                         paddingVertical: 10,
@@ -789,7 +775,7 @@ export default function AMEStatViewer() {
                     screenDimensions.isSmallScreen && { fontSize: 22 },
                     screenDimensions.isLargeScreen && { fontSize: 36 },
                     screenDimensions.isXLargeScreen && { fontSize: 42 }
-                  ]}>AME Status Overview</Text>
+                  ]}>Annual Medical Examination Overview</Text>
                   <Text style={[
                     styles.subheading,
                     screenDimensions.isSmallScreen && { fontSize: 14 },
@@ -826,19 +812,40 @@ export default function AMEStatViewer() {
                 </View>
 
                 <LinearGradient
-                    colors={['#F9FAFB', '#F3F4F6']}
-                    style={[styles.dataCard, { flexDirection: 'row', alignItems: 'center', padding: 16 }]}
-                    >
-                    <LinearGradient
-                        colors={['#166534', '#15803D']}
-                        style={styles.dataCardIcon}
-                    >
-                        <Icon name="medical-bag" size={24} color="#FFFFFF" />
-                    </LinearGradient>
-                    <Text style={[styles.cardTitle, { color: '#1F2937', fontSize: 18, fontWeight: '600' }]}>
-                        AME Records ({filteredRecords.length}) 
-                    </Text>
-                    </LinearGradient>
+                  colors={['#F9FAFB', '#F3F4F6']}
+                  style={[
+                    styles.dataCard,
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: 16,
+                      width: '50%',
+                      alignSelf: 'center', 
+                      borderRadius: 12,
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={['#166534', '#15803D']}
+                    style={styles.dataCardIcon}
+                  >
+                    <Icon name="medical-bag" size={24} color="#FFFFFF" />
+                  </LinearGradient>
+
+                  <Text
+                    style={[
+                      styles.cardTitle,
+                      {
+                        color: '#1F2937',
+                        fontSize: 18,
+                        fontWeight: '600',
+                        marginLeft: 12,
+                      },
+                    ]}
+                  >
+                    AME Records ({filteredRecords.length})
+                  </Text>
+                </LinearGradient>
               </Animated.View>
             }
             data={filteredRecords}
@@ -1015,6 +1022,8 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     flex: 1,
+    width: "50%",
+    alignItems: "center"
   },
   recordItem: {
     marginBottom: 20,
@@ -1117,7 +1126,7 @@ const styles = StyleSheet.create({
   },
   recordSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#8C6A34',
     fontWeight: '500',
   },
   recordSubtitleSmall: {
@@ -1257,7 +1266,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 14,
-    color: '#FFFFFF',
+    color: '#000000',
     fontWeight: 'bold',
   },
   statusTextSmall: {
