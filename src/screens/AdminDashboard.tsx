@@ -17,6 +17,8 @@ import {
   getAllPrescriptions, 
   PrescriptionHistory 
 } from '../utils/sqlite';
+import { startServer } from '../utils/WifiServer';
+import { sendDataToHost } from '../utils/WifiClient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -58,6 +60,8 @@ export default function DashboardAdmin({ navigation }: any) {
       }
     };
     getAdminId();
+    const server = startServer();
+    return () => server.close(); 
   }, []);
 
   useEffect(() => {
@@ -265,6 +269,34 @@ export default function DashboardAdmin({ navigation }: any) {
       onPress: () => navigation.navigate('LMCRecords'),
       gradient: ['#2b5876', '#4e4376'] as const,
       shadowColor: '#4ECDC4',
+    },
+    {
+      title: 'Sync Data (Wi-Fi)',
+      description: 'Transfer medical data to nearby device via Wi-Fi Direct',
+      icon: '📡',
+      iconBg: '#7E57C2',
+      onPress: () => {
+        Alert.prompt(
+          'Enter Host IP',
+          'Enter the IP address of the receiving device',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            },
+            {
+              text: 'Send',
+              onPress: (ip) => {
+                if (ip) sendDataToHost(ip.trim());
+                else Alert.alert('Invalid IP', 'Please enter a valid IP address');
+              },
+            },
+          ],
+          'plain-text'
+        );
+      },
+      gradient: ['#41295a', '#2F0743'],
+      shadowColor: '#7E57C2',
     },
     {
       title: 'Health Reports & Logs',

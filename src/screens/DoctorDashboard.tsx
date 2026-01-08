@@ -12,6 +12,8 @@ import {
 import { Text, Title, Paragraph } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { startServer } from '../utils/WifiServer';
+import { sendDataToHost } from '../utils/WifiClient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -55,7 +57,10 @@ export default function DashboardDoctor({ navigation }: any) {
       }
     };
     getDoctordetails();
+    const server = startServer();
+    return () => server.close(); 
   }, []);
+  
 
   const handleLogout = () => {
     Alert.alert(
@@ -226,6 +231,31 @@ export default function DashboardDoctor({ navigation }: any) {
       onPress: () => navigation.navigate('LMCStatViewer'),
       gradient: ['#2b5876', '#4e4376'] as const,
       shadowColor: '#4ECDC4',
+    },
+    {
+      title: 'Sync Data (Wi-Fi)',
+      description: 'Send patient records to a nearby device via Wi-Fi Direct',
+      icon: '📡',
+      iconBg: '#7E57C2',
+      onPress: () => {
+        Alert.prompt(
+          'Enter Host IP',
+          'Enter the IP address of the receiving device',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Send',
+              onPress: (ip) => {
+                if (ip) sendDataToHost(ip.trim());
+                else Alert.alert('Invalid IP', 'Please enter a valid IP address');
+              },
+            },
+          ],
+          'plain-text'
+        );
+      },
+      gradient: ['#41295a', '#2F0743'],
+      shadowColor: '#7E57C2',
     },
     {
       title: 'Health Reports & Logs',
